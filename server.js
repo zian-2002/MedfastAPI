@@ -9,6 +9,10 @@ const obatRoutes = require('./src/routes/obatRoutes');
 const apotekRoutes = require('./src/routes/apotekRoutes');
 const stokObatRoutes = require('./src/routes/stokObatRoutes');
 const profileRoutes = require('./src/routes/profileRoutes');
+const pesananRoutes = require('./src/routes/pesananRoutes');
+const detailPesananRoutes = require('./src/routes/detailPesananRoutes');
+const pembayaranRoutes = require('./src/routes/pembayaranRoutes');
+const pengirimanRoutes = require('./src/routes/pengirimanRoutes');
 
 const app = express();
 
@@ -34,6 +38,10 @@ app.use('/api/obat', obatRoutes);
 app.use('/api/apotek', apotekRoutes);
 app.use('/api/stok-obat', stokObatRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/pesanan', pesananRoutes);
+app.use('/api/detail-pesanan', detailPesananRoutes);
+app.use('/api/pembayaran', pembayaranRoutes);
+app.use('/api/pengiriman', pengirimanRoutes);
 
 // ==============================
 // PORT

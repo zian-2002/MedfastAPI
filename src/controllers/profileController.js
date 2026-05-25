@@ -1,42 +1,70 @@
 const supabase = require('../config/supabase');
 const bcrypt = require('bcrypt');
 
-// Mendapatkan profile diri sendiri berdasarkan JWT Token
+// ==========================================
+// GET PROFILE
+// ==========================================
 const getProfile = async (req, res) => {
     try {
-        // req.user.id_user didapat dari authMiddleware (authenticateJWT)
         const id_user = req.user.id_user;
 
         const { data, error } = await supabase
             .from('users')
-            .select('id_user, nama, email, no_hp, alamat, role') // Mengecualikan password agar aman
+            .select('id_user, nama, email, no_hp, alamat, role')
             .eq('id_user', id_user)
             .single();
 
         if (error) throw error;
-        if (!data) return res.status(404).json({ message: 'User tidak ditemukan' });
+
+        if (!data) {
+            return res.status(404).json({
+                message: 'User tidak ditemukan'
+            });
+        }
 
         res.status(200).json(data);
+
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({
+            message: error.message
+        });
     }
 };
 
-// Mengupdate profile sendiri (nama, no_hp, alamat)
+// ==========================================
+// UPDATE PROFILE
+// ==========================================
 const updateProfile = async (req, res) => {
     try {
         const id_user = req.user.id_user;
+
         const { nama, no_hp, alamat } = req.body;
 
+        // ambil role user dulu
+        const { data: user, error: userError } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id_user', id_user)
+            .single();
+
+        if (userError) throw userError;
+
+        let updateData = {
+            nama,
+            no_hp
+        };
+
+        // kalau pelanggan boleh edit alamat
+        if (user.role === 'pelanggan') {
+            updateData.alamat = alamat;
+        }
+
+        // kalau admin alamat tidak diubah
         const { data, error } = await supabase
             .from('users')
-            .update({
-                nama,
-                no_hp,
-                alamat
-            })
+            .update(updateData)
             .eq('id_user', id_user)
-            .select('id_user, nama, email, no_hp, alamat, role'); // Jangan me-return password
+            .select('id_user, nama, email, no_hp, alamat, role');
 
         if (error) throw error;
 
@@ -44,18 +72,24 @@ const updateProfile = async (req, res) => {
             message: 'Profile berhasil diperbarui',
             data: data[0]
         });
+
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({
+            message: error.message
+        });
     }
 };
 
-// Mengubah password
+// ==========================================
+// CHANGE PASSWORD
+// ==========================================
 const changePassword = async (req, res) => {
     try {
         const id_user = req.user.id_user;
+
         const { old_password, new_password } = req.body;
 
-        // 1. Ambil data user dari database untuk mendapatkan password lama yang sudah di-hash
+        // ambil data user
         const { data: user, error: fetchError } = await supabase
             .from('users')
             .select('*')
@@ -63,29 +97,44 @@ const changePassword = async (req, res) => {
             .single();
 
         if (fetchError || !user) {
-            return res.status(404).json({ message: 'User tidak ditemukan' });
+            return res.status(404).json({
+                message: 'User tidak ditemukan'
+            });
         }
 
-        // 2. Bandingkan old_password yang diinput dengan password di database
-        const validPassword = await bcrypt.compare(old_password, user.password);
+        // cek password lama
+        const validPassword = await bcrypt.compare(
+            old_password,
+            user.password
+        );
+
         if (!validPassword) {
-            return res.status(400).json({ message: 'Password lama salah!' });
+            return res.status(400).json({
+                message: 'Password lama salah'
+            });
         }
 
-        // 3. Hash password baru
+        // hash password baru
         const hashedNewPassword = await bcrypt.hash(new_password, 10);
 
-        // 4. Update password di database
+        // update password
         const { error: updateError } = await supabase
             .from('users')
-            .update({ password: hashedNewPassword })
+            .update({
+                password: hashedNewPassword
+            })
             .eq('id_user', id_user);
 
         if (updateError) throw updateError;
 
-        res.status(200).json({ message: 'Password berhasil diubah' });
+        res.status(200).json({
+            message: 'Password berhasil diubah'
+        });
+
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({
+            message: error.message
+        });
     }
 };
 

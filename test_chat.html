@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedFast Chat Test Tool</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #10b981;
+            --primary-hover: #059669;
+            --accent: #3b82f6;
+            --border: #334155;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        header {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        header h1 {
+            color: var(--primary);
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+            width: 100%;
+            max-width: 1100px;
+            height: calc(100vh - 120px);
+        }
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .card h2 {
+            font-size: 1.1rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+            color: var(--primary);
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 6px;
+            background: #334155;
+            border: none;
+            color: var(--text-color);
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        .tab-btn.active {
+            background: var(--primary);
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        input, select {
+            background-color: var(--bg-color);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 6px 10px;
+            color: var(--text-color);
+            font-size: 0.85rem;
+            outline: none;
+            width: 100%;
+        }
+        input:focus, select:focus {
+            border-color: var(--primary);
+        }
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+        button.accent {
+            background-color: var(--accent);
+        }
+        button.accent:hover {
+            background-color: #2563eb;
+        }
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 5px;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #ef4444;
+        }
+        .status-dot.connected {
+            background-color: #10b981;
+        }
+        .chat-area {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .chat-header {
+            padding: 15px 20px;
+            background-color: #1e293b80;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .chat-title {
+            font-weight: bold;
+        }
+        .messages-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background-color: #0b0f19;
+        }
+        .message-bubble {
+            max-width: 70%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .message-bubble.incoming {
+            background-color: #1e293b;
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
+        .message-bubble.outgoing {
+            background-color: var(--primary);
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+        .message-info {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .message-bubble.outgoing .message-info {
+            color: #d1fae5;
+        }
+        .chat-input-area {
+            padding: 15px 20px;
+            background-color: #1e293b80;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 10px;
+        }
+        .chat-input-area input {
+            flex: 1;
+        }
+        .chat-input-area button {
+            width: 80px;
+        }
+        .badge {
+            background-color: #334155;
+            color: var(--text-muted);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>MedFast Chat Test Tool 🚀</h1>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">Alat Pengujian REST API & WebSockets Chat</p>
+    </header>
+
+    <div class="container">
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <!-- 1. AUTH CARD (Register & Login) -->
+            <div class="card" id="authCard">
+                <div class="tabs">
+                    <button class="tab-btn active" id="tabLogin" onclick="switchAuthTab('login')">Masuk</button>
+                    <button class="tab-btn" id="tabRegister" onclick="switchAuthTab('register')">Daftar</button>
+                </div>
+
+                <!-- LOGIN FORM -->
+                <div id="loginForm" class="auth-form">
+                    <h2>Login User</h2>
+                    <div class="form-group" style="margin-top: 10px;">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" value="pelanggan@medfast.com" placeholder="Email user">
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" value="password123" placeholder="Password">
+                    </div>
+                    <button style="margin-top: 10px; width: 100%;" onclick="login()">Login & Dapatkan Token</button>
+                </div>
+
+                <!-- REGISTER FORM -->
+                <div id="registerForm" class="auth-form" style="display: none;">
+                    <h2>Register User Baru</h2>
+                    <div class="form-group" style="margin-top: 10px;">
+                        <label for="regNama">Nama Lengkap</label>
+                        <input type="text" id="regNama" placeholder="Contoh: Budi Santoso">
+                    </div>
+                    <div class="form-group">
+                        <label for="regEmail">Email</label>
+                        <input type="email" id="regEmail" placeholder="Contoh: budi@gmail.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="regPassword">Password</label>
+                        <input type="password" id="regPassword" placeholder="Password">
+                    </div>
+                    <div class="form-group">
+                        <label for="regHp">No. HP</label>
+                        <input type="text" id="regHp" placeholder="Contoh: 08123456789">
+                    </div>
+                    <div class="form-group">
+                        <label for="regAlamat">Alamat</label>
+                        <input type="text" id="regAlamat" placeholder="Alamat lengkap">
+                    </div>
+                    <div class="form-group">
+                        <label for="regRole">Role</label>
+                        <select id="regRole" onchange="toggleKodeApotekField()">
+                            <option value="pelanggan">Pelanggan</option>
+                            <option value="admin">Admin / Apotek</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="regKodeApotekGroup" style="display: none;">
+                        <label for="regKodeApotek">Kode Apotek (Khusus Admin)</label>
+                        <input type="text" id="regKodeApotek" placeholder="Contoh: MFKF7A9B2D">
+                    </div>
+                    <button style="margin-top: 10px; width: 100%;" class="accent" onclick="register()">Daftar User</button>
+                </div>
+
+                <div id="loginStatus" class="status-indicator">
+                    <div id="loginDot" class="status-dot"></div>
+                    <span id="loginText">Belum Login</span>
+                </div>
+            </div>
+
+            <!-- 2. ROOM SELECTION/CREATION CARD -->
+            <div class="card" id="roomCard" style="opacity: 0.5; pointer-events: none;">
+                <h2>2. Room Chat</h2>
+                <div class="form-group">
+                    <label for="pelangganId">ID Pelanggan (User)</label>
+                    <input type="number" id="pelangganId" value="1">
+                </div>
+                <div class="form-group">
+                    <label for="adminId">ID Admin (Apotek)</label>
+                    <input type="number" id="adminId" value="2">
+                </div>
+                <div class="form-group">
+                    <label for="apotekId">ID Apotek</label>
+                    <input type="number" id="apotekId" value="1">
+                </div>
+                <button class="accent" onclick="getOrCreateRoom()">Hubungkan / Buat Room</button>
+            </div>
+        </div>
+
+        <!-- CHAT BOX AREA -->
+        <div class="chat-area">
+            <div class="chat-header">
+                <div>
+                    <span class="chat-title" id="activeChatTitle">Belum Terhubung ke Room Chat</span>
+                    <span id="activeRoomId" class="badge" style="display: none;">Room ID: -</span>
+                </div>
+                <div class="status-indicator">
+                    <div id="socketDot" class="status-dot"></div>
+                    <span id="socketText">Socket Terputus</span>
+                </div>
+            </div>
+
+            <!-- MESSAGES CONTAINER -->
+            <div class="messages-container" id="messagesContainer">
+                <div style="text-align: center; color: var(--text-muted); margin-top: 20px; font-size: 0.9rem;">
+                    Silakan login terlebih dahulu dan pilih/buat room chat untuk mulai mengirim pesan secara real-time.
+                </div>
+            </div>
+
+            <!-- INPUT FIELD -->
+            <div class="chat-input-area" style="display: flex; align-items: center; gap: 8px;">
+                <input type="file" id="imageAttachmentInput" accept="image/*" style="display: none;" onchange="handleImageUpload(this)">
+                <button id="attachBtn" onclick="document.getElementById('imageAttachmentInput').click()" style="background-color: #334155; padding: 10px; width: 45px; height: 38px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;" title="Kirim Gambar" disabled>📎</button>
+                <input type="text" id="messageInput" placeholder="Ketik pesan..." onkeydown="if(event.key === 'Enter') sendMessage()" disabled>
+                <button id="sendBtn" onclick="sendMessage()" disabled>Kirim</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const baseUrl = 'http://localhost:3000';
+        let jwtToken = '';
+        let currentUser = null;
+        let activeRoom = null;
+        let socket = null;
+
+        function toggleKodeApotekField() {
+            const role = document.getElementById('regRole').value;
+            const group = document.getElementById('regKodeApotekGroup');
+            if (role === 'admin') {
+                group.style.display = 'flex';
+            } else {
+                group.style.display = 'none';
+            }
+        }
+
+        function switchAuthTab(tab) {
+            const tabLogin = document.getElementById('tabLogin');
+            const tabRegister = document.getElementById('tabRegister');
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+
+            if (tab === 'login') {
+                tabLogin.classList.add('active');
+                tabRegister.classList.remove('active');
+                loginForm.style.display = 'block';
+                registerForm.style.display = 'none';
+            } else {
+                tabLogin.classList.remove('active');
+                tabRegister.classList.add('active');
+                loginForm.style.display = 'none';
+                registerForm.style.display = 'block';
+                toggleKodeApotekField(); // ensure it has the correct state on tab switch
+            }
+        }
+
+        async function register() {
+            const nama = document.getElementById('regNama').value;
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+            const no_hp = document.getElementById('regHp').value;
+            const alamat = document.getElementById('regAlamat').value;
+            const role = document.getElementById('regRole').value;
+            const kode_apotek = document.getElementById('regKodeApotek').value.trim();
+
+            if (!nama || !email || !password) {
+                return alert('Nama, Email, dan Password wajib diisi!');
+            }
+
+            try {
+                const response = await fetch(`${baseUrl}/api/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nama, email, password, no_hp, alamat, role, kode_apotek })
+                });
+
+                const resData = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(resData.message || 'Gagal registrasi');
+                }
+
+                alert(`Registrasi Berhasil! Silakan gunakan tab "Masuk" dengan email: ${email}`);
+                switchAuthTab('login');
+                document.getElementById('email').value = email;
+                document.getElementById('password').value = password;
+
+            } catch (err) {
+                console.error(err);
+                alert(`Error Registrasi: ${err.message}`);
+            }
+        }
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const loginStatusText = document.getElementById('loginText');
+            const loginDot = document.getElementById('loginDot');
+
+            try {
+                const response = await fetch(`${baseUrl}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const resData = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(resData.message || 'Gagal login');
+                }
+
+                jwtToken = resData.token;
+                currentUser = resData.user;
+
+                loginDot.classList.add('connected');
+                loginStatusText.innerText = `Login sukses: ${currentUser.nama} (${currentUser.role})`;
+                
+                // Aktifkan Form Room
+                document.getElementById('roomCard').style.opacity = '1';
+                document.getElementById('roomCard').style.pointerEvents = 'auto';
+
+                // Autofill ID pelanggan jika rolenya adalah pelanggan
+                if (currentUser.role === 'pelanggan') {
+                    document.getElementById('pelangganId').value = currentUser.id_user;
+                } else {
+                    document.getElementById('adminId').value = currentUser.id_user;
+                }
+
+                alert(`Login Berhasil! Token disimpan. ID User Anda: ${currentUser.id_user}`);
+
+            } catch (err) {
+                console.error(err);
+                loginDot.classList.remove('connected');
+                loginStatusText.innerText = `Login Gagal: ${err.message}`;
+                alert(`Error Login: ${err.message}`);
+            }
+        }
+
+        async function getOrCreateRoom() {
+            if (!jwtToken) return alert('Silakan login terlebih dahulu!');
+
+            const id_pelanggan = parseInt(document.getElementById('pelangganId').value);
+            const id_admin = parseInt(document.getElementById('adminId').value);
+            const id_apotek = parseInt(document.getElementById('apotekId').value);
+
+            try {
+                // 1. Get or Create Room via REST API
+                const response = await fetch(`${baseUrl}/api/chat/room`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${jwtToken}`
+                    },
+                    body: JSON.stringify({ id_pelanggan, id_admin, id_apotek })
+                });
+
+                const resData = await response.json();
+
+                if (!response.ok) {
+                    const detail = resData.error ? `\nDetail: ${resData.error.details || resData.error.message}` : '';
+                    throw new Error((resData.message || 'Gagal membuat/menemukan room chat') + detail);
+                }
+
+                activeRoom = resData.data;
+                const roomId = activeRoom.id_chat;
+
+                document.getElementById('activeChatTitle').innerText = `Chat Room (Apotek ID: ${id_apotek})`;
+                const roomBadge = document.getElementById('activeRoomId');
+                roomBadge.style.display = 'inline';
+                roomBadge.innerText = `Room ID: ${roomId}`;
+
+                // 2. Ambil riwayat pesan sebelumnya
+                await loadMessages(roomId);
+
+                // 3. Hubungkan ke WebSocket Server menggunakan Socket.io
+                connectSocket(roomId);
+
+                // Aktifkan Input chat
+                document.getElementById('messageInput').disabled = false;
+                document.getElementById('sendBtn').disabled = false;
+                document.getElementById('attachBtn').disabled = false;
+                document.getElementById('messageInput').focus();
+
+            } catch (err) {
+                console.error(err);
+                alert(`Error Room: ${err.message}`);
+            }
+        }
+
+        async function loadMessages(roomId) {
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = '<div style="text-align: center; color: var(--text-muted)">Memuat riwayat pesan...</div>';
+
+            try {
+                const response = await fetch(`${baseUrl}/api/chat/messages/${roomId}`, {
+                    headers: { 'Authorization': `Bearer ${jwtToken}` }
+                });
+
+                const resData = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(resData.message || 'Gagal memuat pesan');
+                }
+
+                const messages = resData.data || [];
+                container.innerHTML = '';
+
+                if (messages.length === 0) {
+                    container.innerHTML = '<div style="text-align: center; color: var(--text-muted)">Belum ada pesan. Mulai obrolan sekarang!</div>';
+                    return;
+                }
+
+                messages.forEach(msg => {
+                    appendMessage(msg);
+                });
+
+                scrollToBottom();
+
+            } catch (err) {
+                console.error(err);
+                container.innerHTML = `<div style="text-align: center; color: #ef4444">Gagal memuat pesan: ${err.message}</div>`;
+            }
+        }
+
+        function connectSocket(roomId) {
+            if (socket) {
+                socket.disconnect();
+            }
+
+            // Inisialisasi Socket.io client
+            socket = io(baseUrl);
+
+            const socketDot = document.getElementById('socketDot');
+            const socketText = document.getElementById('socketText');
+
+            socket.on('connect', () => {
+                socketDot.classList.add('connected');
+                socketText.innerText = 'Socket Terhubung';
+                console.log("Connected to Socket.io! ID Socket:", socket.id);
+
+                // Emit event join_room
+                socket.emit('join_room', roomId);
+            });
+
+            socket.on('disconnect', () => {
+                socketDot.classList.remove('connected');
+                socketText.innerText = 'Socket Terputus';
+                console.log("Disconnected from Socket.io");
+            });
+
+            // Listen ke event receive_message untuk real-time update
+            socket.on('receive_message', (newMsg) => {
+                console.log("Menerima pesan baru secara real-time:", newMsg);
+                
+                // Hapus tulisan "Belum ada pesan" jika ada
+                const container = document.getElementById('messagesContainer');
+                if (container.innerText.includes("Belum ada pesan")) {
+                    container.innerHTML = '';
+                }
+
+                appendMessage(newMsg);
+                scrollToBottom();
+            });
+        }
+
+        function appendMessage(msg) {
+            const container = document.getElementById('messagesContainer');
+            
+            const isOutgoing = msg.id_pengirim === currentUser.id_user;
+            
+            const bubble = document.createElement('div');
+            bubble.classList.add('message-bubble');
+            bubble.classList.add(isOutgoing ? 'outgoing' : 'incoming');
+
+            // Format tanggal/jam
+            const time = msg.waktu_kirim ? new Date(msg.waktu_kirim).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
+            
+            let senderName = '';
+            if (msg.pengirim) {
+                senderName = msg.pengirim.role === 'admin' ? 'Apotek' : msg.pengirim.nama;
+            } else {
+                senderName = isOutgoing ? (currentUser.role === 'admin' ? 'Apotek' : currentUser.nama) : `User ${msg.id_pengirim}`;
+            }
+
+            bubble.innerHTML = `
+                <div style="font-weight: bold; font-size: 0.8rem; margin-bottom: 2px;">${senderName}</div>
+                ${msg.pesan.startsWith('http') && (msg.pesan.includes('/storage/') || msg.pesan.match(/\.(jpeg|jpg|gif|png|webp)/i)) ? 
+                    `<img src="${msg.pesan}" alt="Gambar Chat" style="max-width: 250px; border-radius: 8px; margin-top: 4px; display: block; cursor: pointer; background: #000;" onclick="window.open('${msg.pesan}', '_blank')">` : 
+                    `<div>${msg.pesan}</div>`
+                }
+                <div class="message-info" style="margin-top: 4px;">
+                    <span>${time}</span>
+                </div>
+            `;
+
+            container.appendChild(bubble);
+        }
+
+        function sendMessage(customPesan = null) {
+            const input = document.getElementById('messageInput');
+            const pesan = customPesan !== null ? customPesan : input.value.trim();
+
+            if (!pesan || !socket || !activeRoom || !currentUser) return;
+
+            const payload = {
+                id_chat: activeRoom.id_chat,
+                id_pengirim: currentUser.id_user,
+                pesan: pesan
+            };
+
+            console.log("Mengirim pesan...", payload);
+
+            // Kirim pesan melalui Socket.io event 'send_message'
+            socket.emit('send_message', payload);
+
+            if (customPesan === null) {
+                input.value = '';
+                input.focus();
+            }
+        }
+
+        async function handleImageUpload(fileInput) {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            if (!jwtToken) return alert('Silakan login terlebih dahulu!');
+
+            const formData = new FormData();
+            formData.append('gambar', file);
+
+            const attachBtn = document.getElementById('attachBtn');
+            const originalText = attachBtn.innerText;
+            attachBtn.innerText = '⏳';
+            attachBtn.disabled = true;
+
+            try {
+                const response = await fetch(`${baseUrl}/api/chat/upload`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${jwtToken}`
+                    },
+                    body: formData
+                });
+
+                const resData = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(resData.message || 'Gagal mengupload gambar');
+                }
+
+                // Kirim URL gambar sebagai pesan
+                sendMessage(resData.url);
+
+            } catch (err) {
+                console.error(err);
+                alert(`Error Upload Gambar: ${err.message}`);
+            } finally {
+                attachBtn.innerText = originalText;
+                attachBtn.disabled = false;
+                fileInput.value = ''; // Reset file input
+            }
+        }
+
+        function scrollToBottom() {
+            const container = document.getElementById('messagesContainer');
+            container.scrollTop = container.scrollHeight;
+        }
+    </script>
+</body>
+</html>

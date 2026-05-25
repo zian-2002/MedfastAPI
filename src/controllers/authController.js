@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 
 const register = async (req, res) => {
     try {
-        const { nama, email, password, no_hp, alamat, role } = req.body;
+        const { nama, email, password, no_hp, alamat, role, kode_apotek } = req.body;
 
         // Cek apakah email sudah ada
         const { data: cekUser } = await supabase
@@ -17,11 +17,33 @@ const register = async (req, res) => {
             return res.status(400).json({ message: 'Email sudah digunakan' });
         }
 
+        let resolvedIdApotek = null;
+
+        // Validasi kode apotek khusus pendaftaran admin
+        if (role === 'admin') {
+            if (!kode_apotek) {
+                return res.status(400).json({ message: 'Registrasi admin wajib memasukkan kode apotek' });
+            }
+
+            // Cari apotek berdasarkan kode_apotek
+            const { data: apotek, error: apotekError } = await supabase
+                .from('apotek')
+                .select('*')
+                .eq('kode_apotek', kode_apotek)
+                .single();
+
+            if (apotekError || !apotek) {
+                return res.status(400).json({ message: 'Kode apotek tidak valid atau tidak ditemukan' });
+            }
+
+            resolvedIdApotek = apotek.id_apotek;
+        }
+
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Insert user baru
-        const { data, error } = await supabase
+        // Insert user baru dengan id_apotek (null untuk pelanggan, bernilai id_apotek untuk admin)
+        const { data: newUser, error: insertError } = await supabase
             .from('users')
             .insert([
                 {
@@ -30,18 +52,19 @@ const register = async (req, res) => {
                     password: hashedPassword,
                     no_hp,
                     alamat,
-                    role
+                    role,
+                    id_apotek: resolvedIdApotek
                 }
             ])
             .select();
 
-        if (error) {
-            return res.status(500).json({ message: 'Error server', error });
+        if (insertError || !newUser || newUser.length === 0) {
+            return res.status(500).json({ message: 'Error server saat membuat user', error: insertError });
         }
 
         res.status(201).json({
             message: 'Register berhasil',
-            data: data[0]
+            data: newUser[0]
         });
 
     } catch (err) {

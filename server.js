@@ -39,10 +39,6 @@ const swaggerOptions = {
         },
         servers: [
             {
-                url: 'http://localhost:3000/api',
-                description: 'Server Lokal (Localhost)'
-            },
-            {
                 url: 'https://medfastapi-production.up.railway.app/api',
                 description: 'Server Railway'
             }

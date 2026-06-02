@@ -37,12 +37,12 @@ const upload = require('../middlewares/uploadMiddleware');
  *             type: object
  *             required:
  *               - nama_obat
- *               - produsen
+ *               - kategori
  *               - harga
  *             properties:
  *               nama_obat:
  *                 type: string
- *               produsen:
+ *               kategori:
  *                 type: string
  *               deskripsi:
  *                 type: string
@@ -104,7 +104,7 @@ router.get('/', obatController.getAllObat);
  *             properties:
  *               nama_obat:
  *                 type: string
- *               produsen:
+ *               kategori:
  *                 type: string
  *               deskripsi:
  *                 type: string

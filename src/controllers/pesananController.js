@@ -209,8 +209,41 @@ const updatePesananStatus = async (req, res) => {
             if (status_pesanan !== 'dibatalkan') {
                 return res.status(400).json({ message: 'User hanya diperbolehkan membatalkan pesanan' });
             }
-            if (existingPesanan.status_pesanan !== 'pending') {
+            if (existingPesanan.status_pesanan !== 'pending' && existingPesanan.status_pesanan !== 'menunggu') {
                 return res.status(400).json({ message: 'Pesanan sudah diproses dan tidak dapat dibatalkan' });
+            }
+        }
+
+        // Jika status diubah menjadi 'dibatalkan', kembalikan stok obat ke apotek
+        if (status_pesanan === 'dibatalkan' && existingPesanan.status_pesanan !== 'dibatalkan') {
+            const { data: detailItems, error: detailError } = await supabase
+                .from('detail_pesanan')
+                .select('id_obat, jumlah')
+                .eq('id_pesanan', id);
+
+            if (detailError) throw detailError;
+
+            if (detailItems && detailItems.length > 0) {
+                for (const item of detailItems) {
+                    const { data: stockData, error: stockFetchError } = await supabase
+                        .from('stok_obat')
+                        .select('id_stok, jumlah_stok')
+                        .eq('id_apotek', existingPesanan.id_apotek)
+                        .eq('id_obat', item.id_obat)
+                        .maybeSingle();
+
+                    if (stockFetchError) throw stockFetchError;
+
+                    if (stockData) {
+                        const newStock = (stockData.jumlah_stok || 0) + parseInt(item.jumlah);
+                        const { error: stockUpdateError } = await supabase
+                            .from('stok_obat')
+                            .update({ jumlah_stok: newStock })
+                            .eq('id_stok', stockData.id_stok);
+
+                        if (stockUpdateError) throw stockUpdateError;
+                    }
+                }
             }
         }
 

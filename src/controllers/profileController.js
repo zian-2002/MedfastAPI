@@ -49,13 +49,12 @@ const updateProfile = async (req, res) => {
 
         if (userError) throw userError;
 
-        let updateData = {
-            nama,
-            no_hp
-        };
+        let updateData = {};
+        if (nama !== undefined) updateData.nama = nama;
+        if (no_hp !== undefined) updateData.no_hp = no_hp;
 
         // kalau pelanggan boleh edit alamat
-        if (user.role === 'pelanggan') {
+        if (user.role === 'pelanggan' && alamat !== undefined) {
             updateData.alamat = alamat;
         }
 

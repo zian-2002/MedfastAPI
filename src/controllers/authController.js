@@ -111,6 +111,8 @@ const login = async (req, res) => {
                 id_user: user.id_user,
                 nama: user.nama,
                 email: user.email,
+                no_hp: user.no_hp,
+                alamat: user.alamat,
                 role: user.role
             }
         });

@@ -3,3 +3,4 @@ node_modules/
 .antigravity/
 .gemini/
 *.log
+presence.json

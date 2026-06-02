@@ -46,7 +46,61 @@ app.use('/api/pesanan', pesananRoutes);
 app.use('/api/detail-pesanan', detailPesananRoutes);
 app.use('/api/pembayaran', pembayaranRoutes);
 app.use('/api/pengiriman', pengirimanRoutes);
-app.use('/api/chat', chatRoutes); // Daftarkan rute chat
+const fs = require('fs');
+const path = require('path');
+const presenceFilePath = path.join(__dirname, 'presence.json');
+
+// In-memory presence tracking maps
+const onlineUsers = new Map(); // userId -> socketId
+const lastSeenMap = new Map();  // userId -> ISO String
+
+// Load presence from file on startup
+try {
+    if (fs.existsSync(presenceFilePath)) {
+        const rawData = fs.readFileSync(presenceFilePath, 'utf8');
+        const parsed = JSON.parse(rawData);
+        for (const [key, value] of Object.entries(parsed)) {
+            lastSeenMap.set(parseInt(key), value);
+        }
+        console.log('Presence data loaded from file.');
+    }
+} catch (err) {
+    console.error('Error loading presence file:', err.message);
+}
+
+// Function to save presence data
+function savePresenceToFile() {
+    try {
+        const obj = {};
+        for (const [key, value] of lastSeenMap.entries()) {
+            obj[key] = value;
+        }
+        fs.writeFileSync(presenceFilePath, JSON.stringify(obj, null, 2), 'utf8');
+    } catch (err) {
+        console.error('Error saving presence file:', err.message);
+    }
+}
+
+// Endpoint presence check (Public, no JWT required)
+app.get('/api/chat/presence/:userId', (req, res) => {
+    const userId = parseInt(req.params.userId);
+    const isOnline = onlineUsers.has(userId);
+    
+    // Fallback to 5 minutes ago if no last seen data exists
+    let lastSeen = lastSeenMap.get(userId) || null;
+    if (!isOnline && !lastSeen) {
+        const fallbackTime = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes ago
+        lastSeen = fallbackTime.toISOString();
+    }
+    
+    res.json({
+        id_user: userId,
+        isOnline,
+        lastSeen
+    });
+});
+
+app.use('/api/chat', chatRoutes); // Daftarkan rute chat setelah rute public presence
 
 // ==============================
 // HTTP & SOCKET.IO SERVER SETUP
@@ -62,6 +116,23 @@ const io = new Server(server, {
 // Logika event Socket.io
 io.on('connection', (socket) => {
     console.log(`User terhubung ke Socket: ${socket.id}`);
+
+    // Event mendaftarkan presence
+    socket.on('register_presence', (userId) => {
+        if (userId) {
+            const uid = parseInt(userId);
+            socket.userId = uid;
+            onlineUsers.set(uid, socket.id);
+            const now = new Date().toISOString();
+            lastSeenMap.set(uid, now);
+            savePresenceToFile();
+            console.log(`User ${uid} terdaftar online presence.`);
+            io.emit('user_presence_change', {
+                userId: uid,
+                isOnline: true
+            });
+        }
+    });
 
     // Event ketika client masuk ke room chat tertentu
     socket.on('join_room', (chatId) => {
@@ -117,6 +188,19 @@ io.on('connection', (socket) => {
     // Event ketika client disconnect
     socket.on('disconnect', () => {
         console.log(`User terputus dari Socket: ${socket.id}`);
+        if (socket.userId) {
+            const uid = socket.userId;
+            onlineUsers.delete(uid);
+            const now = new Date().toISOString();
+            lastSeenMap.set(uid, now);
+            savePresenceToFile();
+            console.log(`User ${uid} sekarang offline. Terakhir dilihat: ${now}`);
+            io.emit('user_presence_change', {
+                userId: uid,
+                isOnline: false,
+                lastSeen: now
+            });
+        }
     });
 });
 

@@ -1,9 +1,12 @@
 const supabase = require('../config/supabase');
 
 // Mengambil semua stok obat beserta nama obat dan nama apotek
+// Jika query param id_apotek diberikan, filter berdasarkan apotek
 const getAllStokObat = async (req, res) => {
     try {
-        const { data, error } = await supabase
+        const { id_apotek } = req.query;
+
+        let query = supabase
             .from('stok_obat')
             .select(`
                 id_stok,
@@ -11,8 +14,14 @@ const getAllStokObat = async (req, res) => {
                 id_apotek,
                 id_obat,
                 apotek ( nama_apotek ),
-                obat ( nama_obat )
+                obat ( id_obat, nama_obat, harga, deskripsi, gambar, kategori )
             `);
+
+        if (id_apotek) {
+            query = query.eq('id_apotek', parseInt(id_apotek));
+        }
+
+        const { data, error } = await query;
 
         if (error) throw error;
         

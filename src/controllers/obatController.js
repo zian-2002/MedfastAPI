@@ -1,34 +1,61 @@
 const supabase = require('../config/supabase');
 
-// Mengambil semua obat
+// Mengambil semua obat beserta jumlah stoknya
 const getAllObat = async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('obat')
-            .select('*');
+            .select(`
+                *,
+                stok_obat (
+                    jumlah_stok
+                )
+            `);
 
         if (error) throw error;
         
-        res.status(200).json(data);
+        // Map data untuk menyertakan total jumlah_stok ke frontend
+        const mappedData = data.map(item => {
+            const totalStok = (item.stok_obat || []).reduce((acc, curr) => acc + (curr.jumlah_stok || 0), 0);
+            const { stok_obat, ...rest } = item;
+            return {
+                ...rest,
+                jumlah_stok: totalStok
+            };
+        });
+        
+        res.status(200).json(mappedData);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
-// Mengambil satu obat berdasarkan ID
+// Mengambil satu obat berdasarkan ID beserta jumlah stoknya
 const getObatById = async (req, res) => {
     try {
         const { id } = req.params;
         const { data, error } = await supabase
             .from('obat')
-            .select('*')
+            .select(`
+                *,
+                stok_obat (
+                    jumlah_stok
+                )
+            `)
             .eq('id_obat', id)
-            .single();
+            .maybeSingle();
 
         if (error) throw error;
         if (!data) return res.status(404).json({ message: 'Obat tidak ditemukan' });
 
-        res.status(200).json(data);
+        const totalStok = (data.stok_obat || []).reduce((acc, curr) => acc + (curr.jumlah_stok || 0), 0);
+        const { stok_obat, ...rest } = data;
+        const mappedData = {
+            ...rest,
+            jumlah_stok: totalStok
+        };
+
+        res.status(200).json(mappedData);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

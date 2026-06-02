@@ -22,27 +22,54 @@ const getAllStokObat = async (req, res) => {
     }
 };
 
-// Menambah stok obat baru (Admin Only)
+// Menambah atau memperbarui stok obat (Admin Only)
 const createStokObat = async (req, res) => {
     try {
         const { id_apotek, id_obat, jumlah_stok } = req.body;
 
-        const { data, error } = await supabase
-            .from('stok_obat')
-            .insert([
-                {
-                    id_apotek,
-                    id_obat,
-                    jumlah_stok: parseInt(jumlah_stok)
-                }
-            ])
-            .select();
+        if (!id_apotek || !id_obat || jumlah_stok === undefined) {
+            return res.status(400).json({ message: 'id_apotek, id_obat, dan jumlah_stok wajib diisi' });
+        }
 
-        if (error) throw error;
+        // Cek apakah data stok untuk apotek dan obat tersebut sudah ada
+        const { data: existingStok, error: fetchError } = await supabase
+            .from('stok_obat')
+            .select('*')
+            .eq('id_apotek', id_apotek)
+            .eq('id_obat', id_obat)
+            .maybeSingle();
+
+        if (fetchError) throw fetchError;
+
+        let result;
+        if (existingStok) {
+            // Jika sudah ada, update jumlah_stok-nya
+            const { data: updateData, error: updateError } = await supabase
+                .from('stok_obat')
+                .update({ jumlah_stok: parseInt(jumlah_stok) })
+                .eq('id_stok', existingStok.id_stok)
+                .select();
+            if (updateError) throw updateError;
+            result = updateData[0];
+        } else {
+            // Jika belum ada, masukkan data baru
+            const { data: insertData, error: insertError } = await supabase
+                .from('stok_obat')
+                .insert([
+                    {
+                        id_apotek,
+                        id_obat,
+                        jumlah_stok: parseInt(jumlah_stok)
+                    }
+                ])
+                .select();
+            if (insertError) throw insertError;
+            result = insertData[0];
+        }
 
         res.status(201).json({
-            message: 'Stok obat berhasil ditambahkan',
-            data: data[0]
+            message: existingStok ? 'Stok obat berhasil diperbarui' : 'Stok obat berhasil ditambahkan',
+            data: result
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

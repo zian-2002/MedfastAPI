@@ -5,6 +5,8 @@ const cors = require('cors');
 const http = require('http'); // Module HTTP bawaan Node
 const { Server } = require('socket.io'); // Socket.io Server
 const supabase = require('./src/config/supabase'); // Supabase client untuk simpan chat
+const swaggerUi = require('swagger-ui-express');
+const swaggerJsdoc = require('swagger-jsdoc');
 
 // Import routes
 const authRoutes = require('./src/routes/authRoutes');
@@ -17,6 +19,7 @@ const detailPesananRoutes = require('./src/routes/detailPesananRoutes');
 const pembayaranRoutes = require('./src/routes/pembayaranRoutes');
 const pengirimanRoutes = require('./src/routes/pengirimanRoutes');
 const chatRoutes = require('./src/routes/chatRoutes'); // Import rute chat
+const keranjangRoutes = require('./src/routes/keranjangRoutes'); // Import rute keranjang
 
 const app = express();
 
@@ -24,6 +27,41 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Swagger Configuration
+const swaggerOptions = {
+    definition: {
+        openapi: '3.0.0',
+        info: {
+            title: 'Medfast API',
+            version: '1.0.0',
+            description: 'Dokumentasi API Medfast',
+        },
+        servers: [
+            {
+                url: 'http://localhost:3000/api',
+                description: 'Server Lokal (Localhost)'
+            },
+            {
+                url: 'https://medfastapi-production.up.railway.app/api',
+                description: 'Server Railway'
+            }
+        ],
+        components: {
+            securitySchemes: {
+                bearerAuth: {
+                    type: 'http',
+                    scheme: 'bearer',
+                    bearerFormat: 'JWT'
+                }
+            }
+        }
+    },
+    apis: [require('path').join(__dirname, './src/routes/*.js').replace(/\\/g, '/')]
+};
+
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
+app.use('/swagger', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // ==============================
 // TEST API
@@ -46,6 +84,7 @@ app.use('/api/pesanan', pesananRoutes);
 app.use('/api/detail-pesanan', detailPesananRoutes);
 app.use('/api/pembayaran', pembayaranRoutes);
 app.use('/api/pengiriman', pengirimanRoutes);
+app.use('/api/keranjang', keranjangRoutes);
 const fs = require('fs');
 const path = require('path');
 const presenceFilePath = path.join(__dirname, 'presence.json');

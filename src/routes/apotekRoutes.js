@@ -24,5 +24,6 @@ const apotekController = require('../controllers/apotekController');
  *         description: Kesalahan server internal
  */
 router.get('/', apotekController.getAllApotek);
+router.put('/:id', apotekController.updateApotek);
 
 module.exports = router;

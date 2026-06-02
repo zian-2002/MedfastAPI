@@ -1,6 +1,6 @@
 const supabase = require('../config/supabase');
 
-// 1. Mengambil seluruh isi keranjang belanja user
+// 1. Mengambil seluruh isi keranjang belanja user beserta stoknya
 const getKeranjang = async (req, res) => {
     try {
         const id_user = req.user.id_user;
@@ -9,14 +9,35 @@ const getKeranjang = async (req, res) => {
             .from('keranjang')
             .select(`
                 *,
-                obat:obat(*)
+                obat:obat(
+                    *,
+                    stok_obat(
+                        jumlah_stok
+                    )
+                )
             `)
             .eq('id_user', id_user)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        res.status(200).json(data);
+        // Map data untuk menggabungkan jumlah_stok di dalam objek obat
+        const mappedData = data.map(item => {
+            if (item.obat) {
+                const totalStok = (item.obat.stok_obat || []).reduce((acc, curr) => acc + (curr.jumlah_stok || 0), 0);
+                const { stok_obat, ...restObat } = item.obat;
+                return {
+                    ...item,
+                    obat: {
+                        ...restObat,
+                        jumlah_stok: totalStok
+                    }
+                };
+            }
+            return item;
+        });
+
+        res.status(200).json(mappedData);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -35,6 +56,18 @@ const addToKeranjang = async (req, res) => {
         const qty = parseInt(jumlah) || 1;
         if (qty <= 0) {
             return res.status(400).json({ message: 'Jumlah barang harus lebih dari 0' });
+        }
+
+        // Cek ketersediaan stok obat terlebih dahulu
+        const { data: stockRecords, error: stockErr } = await supabase
+            .from('stok_obat')
+            .select('jumlah_stok')
+            .eq('id_obat', id_obat);
+
+        if (stockErr) throw stockErr;
+        const totalStok = (stockRecords || []).reduce((acc, curr) => acc + (curr.jumlah_stok || 0), 0);
+        if (totalStok <= 0) {
+            return res.status(400).json({ message: 'Stok obat ini habis atau tidak tersedia' });
         }
 
         // Cek apakah obat tersebut sudah ada di keranjang user

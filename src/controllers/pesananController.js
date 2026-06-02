@@ -15,6 +15,34 @@ const createPesanan = async (req, res) => {
             return res.status(400).json({ message: 'total_harga tidak valid' });
         }
 
+        // Pengecekan ketersediaan stok obat sebelum pesanan dibuat
+        if (detail_items && Array.isArray(detail_items) && detail_items.length > 0) {
+            for (const item of detail_items) {
+                const id_obat = item.id_obat;
+                const jumlah = parseInt(item.jumlah);
+
+                const { data: stockData, error: stockFetchError } = await supabase
+                    .from('stok_obat')
+                    .select('id_stok, jumlah_stok')
+                    .eq('id_apotek', id_apotek)
+                    .eq('id_obat', id_obat)
+                    .maybeSingle();
+
+                if (stockFetchError) throw stockFetchError;
+
+                const currentStock = stockData ? (stockData.jumlah_stok || 0) : 0;
+                if (currentStock < jumlah) {
+                    return res.status(400).json({ 
+                        message: `Stok obat tidak mencukupi atau habis! Stok saat ini: ${currentStock}` 
+                    });
+                }
+                
+                // Simpan referensi update stok ke item
+                item.id_stok = stockData.id_stok;
+                item.new_stock = currentStock - jumlah;
+            }
+        }
+
         // Insert ke tabel pesanan
         const { data: pesananData, error: pesananError } = await supabase
             .from('pesanan')
@@ -57,6 +85,17 @@ const createPesanan = async (req, res) => {
                 await supabase.from('pesanan').delete().eq('id_pesanan', id_pesanan);
                 throw detailsError;
             }
+            
+            // Kurangi stok obat di database setelah pemesanan sukses dibuat
+            for (const item of detail_items) {
+                const { error: stockUpdateError } = await supabase
+                    .from('stok_obat')
+                    .update({ jumlah_stok: item.new_stock })
+                    .eq('id_stok', item.id_stok);
+
+                if (stockUpdateError) throw stockUpdateError;
+            }
+
             insertedDetails = detailsData;
         }
 

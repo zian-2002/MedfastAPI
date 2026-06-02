@@ -65,7 +65,7 @@ const getObatById = async (req, res) => {
 const uploadToSupabase = async (file) => {
     const fileName = `${Date.now()}-${file.originalname}`;
     const { data, error } = await supabase.storage
-        .from('obat_images')
+        .from('obat')
         .upload(fileName, file.buffer, {
             contentType: file.mimetype
         });
@@ -74,7 +74,7 @@ const uploadToSupabase = async (file) => {
 
     // Dapatkan Public URL untuk disimpan di database
     const { data: publicUrlData } = supabase.storage
-        .from('obat_images')
+        .from('obat')
         .getPublicUrl(fileName);
 
     return publicUrlData.publicUrl;

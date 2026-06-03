@@ -40,6 +40,11 @@ const createStokObat = async (req, res) => {
             return res.status(400).json({ message: 'id_apotek, id_obat, dan jumlah_stok wajib diisi' });
         }
 
+        // Keamanan: Admin hanya boleh menambah stok untuk apotek miliknya sendiri
+        if (req.user.id_apotek && parseInt(id_apotek) !== parseInt(req.user.id_apotek)) {
+            return res.status(403).json({ message: 'Akses ditolak. Anda hanya berwenang menambah stok untuk apotek sendiri.' });
+        }
+
         // Cek apakah data stok untuk apotek dan obat tersebut sudah ada
         const { data: existingStok, error: fetchError } = await supabase
             .from('stok_obat')
@@ -90,14 +95,31 @@ const updateStokObat = async (req, res) => {
     try {
         const { id } = req.params;
         const { id_apotek, id_obat, jumlah_stok } = req.body;
+
+        // Ambil stok yang ada untuk memverifikasi kepemilikan apotek
+        const { data: existing, error: fetchErr } = await supabase
+            .from('stok_obat')
+            .select('*')
+            .eq('id_stok', id)
+            .maybeSingle();
+
+        if (fetchErr || !existing) {
+            return res.status(404).json({ message: 'Data stok tidak ditemukan' });
+        }
+
+        // Keamanan: Admin hanya boleh mengupdate stok untuk apotek miliknya sendiri
+        if (req.user.id_apotek && parseInt(existing.id_apotek) !== parseInt(req.user.id_apotek)) {
+            return res.status(403).json({ message: 'Akses ditolak. Anda tidak berwenang mengelola stok apotek lain.' });
+        }
+
+        const updatePayload = {};
+        if (id_apotek !== undefined) updatePayload.id_apotek = id_apotek;
+        if (id_obat !== undefined) updatePayload.id_obat = id_obat;
+        if (jumlah_stok !== undefined) updatePayload.jumlah_stok = parseInt(jumlah_stok);
         
         const { data, error } = await supabase
             .from('stok_obat')
-            .update({
-                id_apotek,
-                id_obat,
-                jumlah_stok: parseInt(jumlah_stok)
-            })
+            .update(updatePayload)
             .eq('id_stok', id)
             .select();
 
@@ -116,6 +138,22 @@ const updateStokObat = async (req, res) => {
 const deleteStokObat = async (req, res) => {
     try {
         const { id } = req.params;
+
+        // Ambil stok yang ada untuk memverifikasi kepemilikan apotek
+        const { data: existing, error: fetchErr } = await supabase
+            .from('stok_obat')
+            .select('*')
+            .eq('id_stok', id)
+            .maybeSingle();
+
+        if (fetchErr || !existing) {
+            return res.status(404).json({ message: 'Data stok tidak ditemukan' });
+        }
+
+        // Keamanan: Admin hanya boleh menghapus stok untuk apotek miliknya sendiri
+        if (req.user.id_apotek && parseInt(existing.id_apotek) !== parseInt(req.user.id_apotek)) {
+            return res.status(403).json({ message: 'Akses ditolak. Anda tidak berwenang mengelola stok apotek lain.' });
+        }
 
         const { error } = await supabase
             .from('stok_obat')

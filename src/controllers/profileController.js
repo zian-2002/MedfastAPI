@@ -10,7 +10,7 @@ const getProfile = async (req, res) => {
 
         const { data, error } = await supabase
             .from('users')
-            .select('id_user, nama, email, no_hp, alamat, role')
+            .select('id_user, nama, email, no_hp, alamat, role, id_apotek')
             .eq('id_user', id_user)
             .single();
 
@@ -63,7 +63,7 @@ const updateProfile = async (req, res) => {
             .from('users')
             .update(updateData)
             .eq('id_user', id_user)
-            .select('id_user, nama, email, no_hp, alamat, role');
+            .select('id_user, nama, email, no_hp, alamat, role, id_apotek');
 
         if (error) throw error;
 

@@ -117,13 +117,19 @@ const getAllPesanan = async (req, res) => {
     try {
         const id_user = req.user.id_user;
         const role = req.user.role;
+        const id_apotek = req.user.id_apotek;
 
         let query = supabase
             .from('pesanan')
             .select('*, users(id_user, nama, email), apotek(*)');
 
-        // Jika bukan admin, batasi query hanya untuk user bersangkutan
-        if (role !== 'admin') {
+        // Batasi query berdasarkan role
+        if (role === 'admin') {
+            if (id_apotek) {
+                query = query.eq('id_apotek', id_apotek);
+            }
+        } else {
+            // Pelanggan hanya melihat pesanan miliknya sendiri
             query = query.eq('id_user', id_user);
         }
 
@@ -143,6 +149,7 @@ const getPesananById = async (req, res) => {
         const { id } = req.params;
         const id_user = req.user.id_user;
         const role = req.user.role;
+        const id_apotek = req.user.id_apotek;
 
         const { data: pesanan, error } = await supabase
             .from('pesanan')
@@ -165,8 +172,12 @@ const getPesananById = async (req, res) => {
             return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
         }
 
-        // Keamanan: Pastikan user hanya dapat mengakses pesanannya sendiri (kecuali admin)
-        if (role !== 'admin' && pesanan.id_user !== id_user) {
+        // Keamanan: Pastikan user hanya dapat mengakses pesanannya sendiri
+        if (role === 'admin') {
+            if (id_apotek && pesanan.id_apotek !== id_apotek) {
+                return res.status(403).json({ message: 'Akses ditolak. Pesanan ini milik apotek lain.' });
+            }
+        } else if (pesanan.id_user !== id_user) {
             return res.status(403).json({ message: 'Akses ditolak. Anda tidak memiliki akses ke pesanan ini.' });
         }
 
@@ -183,6 +194,7 @@ const updatePesananStatus = async (req, res) => {
         const { status_pesanan } = req.body;
         const id_user = req.user.id_user;
         const role = req.user.role;
+        const id_apotek = req.user.id_apotek;
 
         if (!status_pesanan) {
             return res.status(400).json({ message: 'status_pesanan wajib diisi' });
@@ -200,9 +212,12 @@ const updatePesananStatus = async (req, res) => {
         }
 
         // Keamanan & Aturan Bisnis:
-        // 1. Jika bukan admin, hanya bisa membatalkan ('dibatalkan')
-        // 2. Pembatalan oleh user hanya boleh jika status saat ini masih 'pending'
-        if (role !== 'admin') {
+        if (role === 'admin') {
+            if (id_apotek && existingPesanan.id_apotek !== id_apotek) {
+                return res.status(403).json({ message: 'Akses ditolak. Pesanan ini milik apotek lain.' });
+            }
+        } else {
+            // Pelanggan hanya bisa membatalkan ('dibatalkan') jika status saat ini masih 'pending'
             if (existingPesanan.id_user !== id_user) {
                 return res.status(403).json({ message: 'Akses ditolak.' });
             }

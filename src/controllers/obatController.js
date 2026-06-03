@@ -121,6 +121,20 @@ const updateObat = async (req, res) => {
         const { id } = req.params;
         const { nama_obat, deskripsi, kategori, harga } = req.body;
         
+        // Keamanan: Admin hanya boleh mengupdate obat yang ada di apoteknya sendiri
+        if (req.user.id_apotek) {
+            const { data: stockCheck, error: checkError } = await supabase
+                .from('stok_obat')
+                .select('id_stok')
+                .eq('id_obat', id)
+                .eq('id_apotek', req.user.id_apotek)
+                .maybeSingle();
+
+            if (checkError || !stockCheck) {
+                return res.status(403).json({ message: 'Akses ditolak. Obat ini tidak terdaftar di apotek Anda.' });
+            }
+        }
+
         // Ambil data obat saat ini untuk mengecek gambar lama (opsional jika ingin menghapus gambar lama)
         const { data: existingObat } = await supabase
             .from('obat')
@@ -137,7 +151,6 @@ const updateObat = async (req, res) => {
         // Jika ada gambar baru yang diupload, ganti URL
         if (req.file) {
             imageUrl = await uploadToSupabase(req.file);
-            // Catatan: Jika ingin optimal, Anda bisa menghapus gambar lama di Storage di sini
         }
 
         const { data, error } = await supabase
@@ -168,7 +181,27 @@ const deleteObat = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Anda juga bisa menghapus gambar dari storage sebelum menghapus dari database
+        // Keamanan: Admin hanya boleh menghapus obat yang ada di apoteknya sendiri
+        if (req.user.id_apotek) {
+            const { data: stockCheck, error: checkError } = await supabase
+                .from('stok_obat')
+                .select('id_stok')
+                .eq('id_obat', id)
+                .eq('id_apotek', req.user.id_apotek)
+                .maybeSingle();
+
+            if (checkError || !stockCheck) {
+                return res.status(403).json({ message: 'Akses ditolak. Obat ini tidak terdaftar di apotek Anda.' });
+            }
+
+            // Hapus relasi stok terlebih dahulu
+            await supabase
+                .from('stok_obat')
+                .delete()
+                .eq('id_obat', id)
+                .eq('id_apotek', req.user.id_apotek);
+        }
+
         const { error } = await supabase
             .from('obat')
             .delete()

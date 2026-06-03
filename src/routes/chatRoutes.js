@@ -126,4 +126,39 @@ router.get('/messages/:chatId', chatController.getChatMessages);
  */
 router.post('/upload', upload.single('gambar'), chatController.uploadChatImage);
 
+/**
+ * @swagger
+ * /chat/message:
+ *   post:
+ *     summary: Mengirim pesan baru ke room chat tertentu (dan memancarkan via Socket.io)
+ *     tags: [Chat]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - id_chat
+ *               - id_pengirim
+ *               - pesan
+ *             properties:
+ *               id_chat:
+ *                 type: integer
+ *               id_pengirim:
+ *                 type: integer
+ *               pesan:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Pesan berhasil dikirim
+ *       400:
+ *         description: Input tidak valid
+ *       500:
+ *         description: Kesalahan server internal
+ */
+router.post('/message', chatController.sendMessage);
+
 module.exports = router;

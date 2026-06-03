@@ -172,9 +172,80 @@ const uploadChatImage = async (req, res) => {
     }
 };
 
+// Mengirim pesan baru (HTTP POST) dan memancarkannya via Socket.io
+const sendMessage = async (req, res) => {
+    try {
+        const { id_chat, id_pengirim, pesan } = req.body;
+
+        if (!id_chat || !id_pengirim || !pesan) {
+            return res.status(400).json({ message: 'id_chat, id_pengirim, dan pesan wajib diisi' });
+        }
+
+        // Simpan pesan ke database Supabase
+        const { data: newMsg, error } = await supabase
+            .from('chat_message')
+            .insert([
+                {
+                    id_chat: parseInt(id_chat),
+                    id_pengirim: parseInt(id_pengirim),
+                    pesan: pesan,
+                    waktu_kirim: new Date()
+                }
+            ])
+            .select(`
+                *,
+                pengirim:users!id_pengirim (
+                    nama,
+                    role
+                )
+            `);
+
+        if (error) {
+            return res.status(500).json({ message: 'Gagal mengirim pesan', error });
+        }
+
+        // Jika chat room belum memiliki id_admin dan pengirimnya adalah admin, ikat admin ke room ini
+        const { data: roomCheck } = await supabase
+            .from('chat')
+            .select('id_admin')
+            .eq('id_chat', id_chat)
+            .maybeSingle();
+
+        if (roomCheck && !roomCheck.id_admin) {
+            const { data: userCheck } = await supabase
+                .from('users')
+                .select('role')
+                .eq('id_user', id_pengirim)
+                .maybeSingle();
+
+            if (userCheck && userCheck.role === 'admin') {
+                await supabase
+                    .from('chat')
+                    .update({ id_admin: id_pengirim })
+                    .eq('id_chat', id_chat);
+            }
+        }
+
+        // Emit pesan ke seluruh client di room yang sama melalui Socket.io
+        const io = req.app.get('io');
+        if (io) {
+            io.to(id_chat.toString()).emit('receive_message', newMsg[0]);
+        }
+
+        res.status(201).json({
+            message: 'Pesan berhasil dikirim',
+            data: newMsg[0]
+        });
+
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
 module.exports = {
     getOrCreateRoom,
     getUserRooms,
     getChatMessages,
-    uploadChatImage
+    uploadChatImage,
+    sendMessage
 };

@@ -53,9 +53,22 @@ const getOrCreateRoom = async (req, res) => {
 const getUserRooms = async (req, res) => {
     try {
         const { userId } = req.params;
+        const role = req.user.role;
+        let id_apotek = req.user.id_apotek;
 
-        // Query room chat yang melibatkan userId sebagai pelanggan atau admin
-        const { data: rooms, error } = await supabase
+        // Fallback jika token JWT lama belum direfresh
+        if (role === 'admin' && !id_apotek) {
+            const { data: userDb } = await supabase
+                .from('users')
+                .select('id_apotek')
+                .eq('id_user', req.user.id_user)
+                .single();
+            if (userDb) {
+                id_apotek = userDb.id_apotek;
+            }
+        }
+
+        let query = supabase
             .from('chat')
             .select(`
                 *,
@@ -71,9 +84,17 @@ const getUserRooms = async (req, res) => {
                     nama,
                     email
                 )
-            `)
-            .or(`id_pelanggan.eq.${userId},id_admin.eq.${userId}`)
-            .order('tanggal_chat', { ascending: false });
+            `);
+
+        // Jika admin, kembalikan semua chat room yang ditujukan ke apoteknya
+        if (role === 'admin' && id_apotek) {
+            query = query.eq('id_apotek', id_apotek);
+        } else {
+            // Pelanggan melihat chat miliknya sendiri
+            query = query.or(`id_pelanggan.eq.${userId},id_admin.eq.${userId}`);
+        }
+
+        const { data: rooms, error } = await query.order('tanggal_chat', { ascending: false });
 
         if (error) {
             return res.status(500).json({ message: 'Gagal mengambil daftar room chat', error });

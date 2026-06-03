@@ -21,6 +21,11 @@ const updateApotek = async (req, res) => {
         const { id } = req.params;
         const { nama_apotek, alamat, latitude, longitude, jam_operasional } = req.body;
 
+        // Keamanan: Admin hanya boleh memperbarui data apotek miliknya sendiri
+        if (req.user.role === 'admin' && req.user.id_apotek && parseInt(id) !== parseInt(req.user.id_apotek)) {
+            return res.status(403).json({ message: 'Akses ditolak. Anda tidak berwenang mengupdate apotek ini.' });
+        }
+
         const updateData = {};
         if (nama_apotek !== undefined) updateData.nama_apotek = nama_apotek;
         if (alamat !== undefined) updateData.alamat = alamat;

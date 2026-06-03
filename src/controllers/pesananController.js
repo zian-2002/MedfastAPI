@@ -306,6 +306,17 @@ const updatePesananStatus = async (req, res) => {
 
         if (error) throw error;
 
+        // Memancarkan update status pesanan secara realtime lewat Socket.io
+        const io = req.app.get('io');
+        if (io && data && data.length > 0) {
+            const id_pemesan = data[0].id_user;
+            io.to(`orders_${id_pemesan}`).emit('order_status_updated', {
+                id_pesanan: id,
+                status_pesanan: status_pesanan
+            });
+            console.log(`Socket: Memancarkan order_status_updated untuk pelanggan ${id_pemesan}, status baru: ${status_pesanan}`);
+        }
+
         res.status(200).json({
             message: 'Status pesanan berhasil diperbarui',
             data: data[0]

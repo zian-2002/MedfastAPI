@@ -148,9 +148,20 @@ const io = new Server(server, {
     }
 });
 
+// Pasang io ke objek app agar bisa diakses di controller
+app.set('io', io);
+
 // Logika event Socket.io
 io.on('connection', (socket) => {
     console.log(`User terhubung ke Socket: ${socket.id}`);
+
+    // Event bergabung untuk mendapatkan pembaruan status pesanan realtime
+    socket.on('join_orders_updates', (userId) => {
+        if (userId) {
+            socket.join(`orders_${userId}`);
+            console.log(`Socket ${socket.id} bergabung ke pembaruan pesanan user: ${userId}`);
+        }
+    });
 
     // Event mendaftarkan presence
     socket.on('register_presence', (userId) => {

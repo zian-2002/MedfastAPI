@@ -1,14 +1,10 @@
 const supabase = require('./src/config/supabase');
 
 async function check() {
-    const { data, error } = await supabase
-        .from('pesanan')
-        .select('status_pesanan');
-    if (error) {
-        console.error(error);
-        return;
-    }
-    const uniqueStatuses = [...new Set(data.map(d => d.status_pesanan))];
-    console.log('Unique statuses in database:', uniqueStatuses);
+    const { data: obatSample } = await supabase.from('obat').select('*').limit(1);
+    console.log('Obat columns:', obatSample ? Object.keys(obatSample[0] || {}) : 'null');
+    
+    const { data: stokSample } = await supabase.from('stok_obat').select('*').limit(1);
+    console.log('StokObat columns:', stokSample ? Object.keys(stokSample[0] || {}) : 'null');
 }
 check();

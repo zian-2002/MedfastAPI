@@ -117,7 +117,19 @@ const getAllPesanan = async (req, res) => {
     try {
         const id_user = req.user.id_user;
         const role = req.user.role;
-        const id_apotek = req.user.id_apotek;
+        let id_apotek = req.user.id_apotek;
+
+        // Fallback jika token JWT lama belum direfresh
+        if (role === 'admin' && !id_apotek) {
+            const { data: userDb } = await supabase
+                .from('users')
+                .select('id_apotek')
+                .eq('id_user', id_user)
+                .single();
+            if (userDb) {
+                id_apotek = userDb.id_apotek;
+            }
+        }
 
         let query = supabase
             .from('pesanan')
@@ -149,7 +161,19 @@ const getPesananById = async (req, res) => {
         const { id } = req.params;
         const id_user = req.user.id_user;
         const role = req.user.role;
-        const id_apotek = req.user.id_apotek;
+        let id_apotek = req.user.id_apotek;
+
+        // Fallback jika token JWT lama belum direfresh
+        if (role === 'admin' && !id_apotek) {
+            const { data: userDb } = await supabase
+                .from('users')
+                .select('id_apotek')
+                .eq('id_user', id_user)
+                .single();
+            if (userDb) {
+                id_apotek = userDb.id_apotek;
+            }
+        }
 
         const { data: pesanan, error } = await supabase
             .from('pesanan')
@@ -194,7 +218,19 @@ const updatePesananStatus = async (req, res) => {
         const { status_pesanan } = req.body;
         const id_user = req.user.id_user;
         const role = req.user.role;
-        const id_apotek = req.user.id_apotek;
+        let id_apotek = req.user.id_apotek;
+
+        // Fallback jika token JWT lama belum direfresh
+        if (role === 'admin' && !id_apotek) {
+            const { data: userDb } = await supabase
+                .from('users')
+                .select('id_apotek')
+                .eq('id_user', id_user)
+                .single();
+            if (userDb) {
+                id_apotek = userDb.id_apotek;
+            }
+        }
 
         if (!status_pesanan) {
             return res.status(400).json({ message: 'status_pesanan wajib diisi' });

@@ -121,13 +121,25 @@ const updateObat = async (req, res) => {
         const { id } = req.params;
         const { nama_obat, deskripsi, kategori, harga } = req.body;
         
+        let id_apotek = req.user.id_apotek;
+        if (req.user.role === 'admin' && !id_apotek) {
+            const { data: userDb } = await supabase
+                .from('users')
+                .select('id_apotek')
+                .eq('id_user', req.user.id_user)
+                .single();
+            if (userDb) {
+                id_apotek = userDb.id_apotek;
+            }
+        }
+
         // Keamanan: Admin hanya boleh mengupdate obat yang ada di apoteknya sendiri
-        if (req.user.id_apotek) {
+        if (id_apotek) {
             const { data: stockCheck, error: checkError } = await supabase
                 .from('stok_obat')
                 .select('id_stok')
                 .eq('id_obat', id)
-                .eq('id_apotek', req.user.id_apotek)
+                .eq('id_apotek', id_apotek)
                 .maybeSingle();
 
             if (checkError || !stockCheck) {
@@ -181,13 +193,25 @@ const deleteObat = async (req, res) => {
     try {
         const { id } = req.params;
 
+        let id_apotek = req.user.id_apotek;
+        if (req.user.role === 'admin' && !id_apotek) {
+            const { data: userDb } = await supabase
+                .from('users')
+                .select('id_apotek')
+                .eq('id_user', req.user.id_user)
+                .single();
+            if (userDb) {
+                id_apotek = userDb.id_apotek;
+            }
+        }
+
         // Keamanan: Admin hanya boleh menghapus obat yang ada di apoteknya sendiri
-        if (req.user.id_apotek) {
+        if (id_apotek) {
             const { data: stockCheck, error: checkError } = await supabase
                 .from('stok_obat')
                 .select('id_stok')
                 .eq('id_obat', id)
-                .eq('id_apotek', req.user.id_apotek)
+                .eq('id_apotek', id_apotek)
                 .maybeSingle();
 
             if (checkError || !stockCheck) {

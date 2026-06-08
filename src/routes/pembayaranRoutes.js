@@ -10,8 +10,14 @@ const { authenticateJWT, authorizeAdmin } = require('../middlewares/authMiddlewa
  *   description: API untuk mengelola transaksi pembayaran (memerlukan Bearer Token)
  */
 
+// Webhook Midtrans (Public - Tanpa JWT Auth)
+router.post('/notification', pembayaranController.handleMidtransNotification);
+
 // Semua rute pembayaran wajib menyertakan token JWT
 router.use(authenticateJWT);
+
+// Route untuk mendapatkan token snap Midtrans
+router.post('/snap-token', pembayaranController.getSnapToken);
 
 /**
  * @swagger

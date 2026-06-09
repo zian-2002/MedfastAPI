@@ -1,6 +1,6 @@
 const supabase = require('../config/supabase');
 
-// Mengambil semua obat beserta jumlah stoknya
+// Mengambil semua obat beserta jumlah stoknya (Filter soft delete)
 const getAllObat = async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -10,7 +10,8 @@ const getAllObat = async (req, res) => {
                 stok_obat (
                     jumlah_stok
                 )
-            `);
+            `)
+            .is('deleted_at', null);
 
         if (error) throw error;
         
@@ -30,7 +31,7 @@ const getAllObat = async (req, res) => {
     }
 };
 
-// Mengambil satu obat berdasarkan ID beserta jumlah stoknya
+// Mengambil satu obat berdasarkan ID beserta jumlah stoknya (Filter soft delete)
 const getObatById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -43,6 +44,7 @@ const getObatById = async (req, res) => {
                 )
             `)
             .eq('id_obat', id)
+            .is('deleted_at', null)
             .maybeSingle();
 
         if (error) throw error;
@@ -152,7 +154,8 @@ const updateObat = async (req, res) => {
             .from('obat')
             .select('*')
             .eq('id_obat', id)
-            .single();
+            .is('deleted_at', null)
+            .maybeSingle();
 
         if (!existingObat) {
             return res.status(404).json({ message: 'Obat tidak ditemukan' });
@@ -188,7 +191,7 @@ const updateObat = async (req, res) => {
     }
 };
 
-// Menghapus obat (Admin Only)
+// Menghapus obat (Admin Only - Soft Delete)
 const deleteObat = async (req, res) => {
     try {
         const { id } = req.params;
@@ -218,20 +221,41 @@ const deleteObat = async (req, res) => {
                 return res.status(403).json({ message: 'Akses ditolak. Obat ini tidak terdaftar di apotek Anda.' });
             }
 
-            // Hapus relasi stok terlebih dahulu
+            // Hapus relasi stok terlebih dahulu untuk apotek ini
             await supabase
                 .from('stok_obat')
                 .delete()
                 .eq('id_obat', id)
-                .eq('id_apotek', req.user.id_apotek);
+                .eq('id_apotek', id_apotek);
+
+            // Cek apakah masih ada apotek lain yang memiliki stok obat ini
+            const { data: otherStocks } = await supabase
+                .from('stok_obat')
+                .select('id_stok')
+                .eq('id_obat', id)
+                .limit(1);
+
+            if (!otherStocks || otherStocks.length === 0) {
+                // Jika tidak ada apotek lain yang mengelola obat ini, lakukan soft delete pada tabel obat
+                const { error: deleteError } = await supabase
+                    .from('obat')
+                    .update({ deleted_at: new Date() })
+                    .eq('id_obat', id);
+                if (deleteError) throw deleteError;
+            }
+        } else {
+            // Jika super admin / tidak terikat apotek tertentu, hapus semua stok obat ini lalu soft delete
+            await supabase
+                .from('stok_obat')
+                .delete()
+                .eq('id_obat', id);
+
+            const { error: deleteError } = await supabase
+                .from('obat')
+                .update({ deleted_at: new Date() })
+                .eq('id_obat', id);
+            if (deleteError) throw deleteError;
         }
-
-        const { error } = await supabase
-            .from('obat')
-            .delete()
-            .eq('id_obat', id);
-
-        if (error) throw error;
 
         res.status(200).json({ message: 'Obat berhasil dihapus' });
     } catch (error) {

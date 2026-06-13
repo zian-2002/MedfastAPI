@@ -326,8 +326,18 @@ const handleMidtransNotification = async (req, res) => {
             pesananStatus = 'menunggu';
         }
 
+        let detailMetode = 'Online';
+        if (statusResponse.payment_type) {
+            if (statusResponse.payment_type === 'bank_transfer' && statusResponse.va_numbers && statusResponse.va_numbers.length > 0) {
+                detailMetode = statusResponse.va_numbers[0].bank.toUpperCase();
+            } else {
+                detailMetode = statusResponse.payment_type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+            }
+        }
+
         const updatePembayaran = {
-            status_pembayaran: pembayaranStatus
+            status_pembayaran: pembayaranStatus,
+            metode_pembayaran: detailMetode
         };
         if (pembayaranStatus === 'lunas') {
             updatePembayaran.tanggal_pembayaran = new Date();

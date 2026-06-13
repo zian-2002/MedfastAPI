@@ -298,15 +298,15 @@ const updatePesananStatus = async (req, res) => {
             }
         }
 
-        // Jika status diubah menjadi 'selesai', otomatis ubah status pembayaran terkait menjadi 'lunas'
+        // Jika status diubah menjadi 'selesai', otomatis ubah status pembayaran terkait menjadi 'berhasil'
         if (status_pesanan === 'selesai') {
             const { error: paymentUpdateError } = await supabase
                 .from('pembayaran')
-                .update({ status_pembayaran: 'lunas', tanggal_pembayaran: new Date() })
+                .update({ status_pembayaran: 'berhasil', tanggal_pembayaran: new Date() })
                 .eq('id_pesanan', id);
 
             if (paymentUpdateError) {
-                console.error('Gagal memperbarui status pembayaran ke lunas:', paymentUpdateError);
+                console.error('Gagal memperbarui status pembayaran ke berhasil:', paymentUpdateError);
             }
         }
 

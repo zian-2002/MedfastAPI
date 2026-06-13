@@ -137,9 +137,10 @@ const updatePembayaran = async (req, res) => {
         if (metode_pembayaran) updateData.metode_pembayaran = metode_pembayaran;
         
         if (status_pembayaran) {
-            updateData.status_pembayaran = status_pembayaran;
-            // Jika berubah menjadi lunas, set tanggal pembayaran ke saat ini
-            if (status_pembayaran === 'lunas' && currentPayment.status_pembayaran !== 'lunas') {
+            const normalizedStatus = status_pembayaran === 'lunas' ? 'berhasil' : status_pembayaran;
+            updateData.status_pembayaran = normalizedStatus;
+            // Jika berubah menjadi lunas/berhasil, set tanggal pembayaran ke saat ini
+            if (normalizedStatus === 'berhasil' && currentPayment.status_pembayaran !== 'berhasil') {
                 updateData.tanggal_pembayaran = new Date();
             }
         }
@@ -312,11 +313,11 @@ const handleMidtransNotification = async (req, res) => {
                 pembayaranStatus = 'belum_bayar';
                 pesananStatus = 'menunggu';
             } else if (fraudStatus === 'accept') {
-                pembayaranStatus = 'lunas';
+                pembayaranStatus = 'berhasil';
                 pesananStatus = 'diproses';
             }
         } else if (transactionStatus === 'settlement') {
-            pembayaranStatus = 'lunas';
+            pembayaranStatus = 'berhasil';
             pesananStatus = 'diproses';
         } else if (transactionStatus === 'cancel' || transactionStatus === 'deny' || transactionStatus === 'expire') {
             pembayaranStatus = 'gagal';
@@ -339,7 +340,7 @@ const handleMidtransNotification = async (req, res) => {
             status_pembayaran: pembayaranStatus,
             metode_pembayaran: detailMetode
         };
-        if (pembayaranStatus === 'lunas') {
+        if (pembayaranStatus === 'berhasil') {
             updatePembayaran.tanggal_pembayaran = new Date();
         }
 

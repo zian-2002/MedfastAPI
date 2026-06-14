@@ -7,17 +7,17 @@ const snap = new midtransClient.Snap({
     clientKey: process.env.MIDTRANS_CLIENT_KEY
 });
 
-
+// 1. Membuat pembayaran baru
 const createPembayaran = async (req, res) => {
     try {
         const { id_pesanan, metode_pembayaran, status_pembayaran } = req.body;
 
-        
+        // Validasi input
         if (!id_pesanan || !metode_pembayaran) {
             return res.status(400).json({ message: 'id_pesanan dan metode_pembayaran wajib diisi' });
         }
 
-        
+        // Cek apakah pesanan ada
         const { data: pesanan, error: pesananError } = await supabase
             .from('pesanan')
             .select('*')
@@ -45,7 +45,7 @@ const createPembayaran = async (req, res) => {
 
         if (error) throw error;
 
-        
+        // Logika Bisnis: Jika pembayaran langsung lunas, update status_pesanan menjadi 'diproses'
         if (statusBayar === 'lunas') {
             await supabase
                 .from('pesanan')
@@ -62,9 +62,9 @@ const createPembayaran = async (req, res) => {
     }
 };
 
-
-
-
+// 2. Mendapatkan daftar pembayaran
+// - Admin: Bisa melihat seluruh pembayaran
+// - User biasa: Hanya melihat pembayaran miliknya sendiri menggunakan Supabase inner join filter
 const getAllPembayaran = async (req, res) => {
     try {
         const id_user = req.user.id_user;
@@ -88,7 +88,7 @@ const getAllPembayaran = async (req, res) => {
     }
 };
 
-
+// 3. Mendapatkan detail pembayaran berdasarkan ID
 const getPembayaranById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -104,7 +104,7 @@ const getPembayaranById = async (req, res) => {
         if (error) throw error;
         if (!data) return res.status(404).json({ message: 'Pembayaran tidak ditemukan' });
 
-        
+        // Keamanan: Cek kepemilikan pembayaran jika bukan admin
         if (role !== 'admin' && data.pesanan.id_user !== id_user) {
             return res.status(403).json({ message: 'Akses ditolak. Anda tidak memiliki akses ke data pembayaran ini.' });
         }
@@ -115,14 +115,14 @@ const getPembayaranById = async (req, res) => {
     }
 };
 
-
-
+// 4. Memperbarui status/metode pembayaran
+// (Admin atau pihak sistem payment gateway dapat mengubah status pembayaran)
 const updatePembayaran = async (req, res) => {
     try {
         const { id } = req.params;
         const { status_pembayaran, metode_pembayaran } = req.body;
 
-        
+        // Ambil data pembayaran lama
         const { data: currentPayment, error: fetchError } = await supabase
             .from('pembayaran')
             .select('*, pesanan(*)')
@@ -139,7 +139,7 @@ const updatePembayaran = async (req, res) => {
         if (status_pembayaran) {
             const normalizedStatus = status_pembayaran === 'lunas' ? 'berhasil' : status_pembayaran;
             updateData.status_pembayaran = normalizedStatus;
-            
+            // Jika berubah menjadi lunas/berhasil, set tanggal pembayaran ke saat ini
             if (normalizedStatus === 'berhasil' && currentPayment.status_pembayaran !== 'berhasil') {
                 updateData.tanggal_pembayaran = new Date();
             }
@@ -153,7 +153,7 @@ const updatePembayaran = async (req, res) => {
 
         if (error) throw error;
 
-        
+        // Logika Bisnis: Jika pembayaran diperbarui menjadi lunas, update status_pesanan menjadi 'diproses'
         if (status_pembayaran === 'lunas' && currentPayment.status_pembayaran !== 'lunas') {
             await supabase
                 .from('pesanan')
@@ -170,7 +170,7 @@ const updatePembayaran = async (req, res) => {
     }
 };
 
-
+// 5. Menghapus pembayaran (Admin Only)
 const deletePembayaran = async (req, res) => {
     try {
         const { id } = req.params;
@@ -193,7 +193,7 @@ const deletePembayaran = async (req, res) => {
     }
 };
 
-
+// 6. Mendapatkan token snap untuk pembayaran Midtrans
 const getSnapToken = async (req, res) => {
     try {
         const { id_pesanan } = req.body;
@@ -202,7 +202,7 @@ const getSnapToken = async (req, res) => {
             return res.status(400).json({ message: 'id_pesanan wajib diisi' });
         }
 
-        
+        // Ambil data pesanan dan join dengan data user
         const { data: pesanan, error: pesananError } = await supabase
             .from('pesanan')
             .select('*, users(*)')
@@ -215,7 +215,7 @@ const getSnapToken = async (req, res) => {
 
         const user = pesanan.users || {};
 
-        
+        // Generate ID transaksi unik untuk Midtrans
         const midtransOrderId = `MEDFAST-ORDER-${id_pesanan}-${Date.now()}`;
 
         const parameter = {
@@ -230,12 +230,12 @@ const getSnapToken = async (req, res) => {
             }
         };
 
-        
+        // Buat transaksi di Midtrans
         const transaction = await snap.createTransaction(parameter);
         const snapToken = transaction.token;
         const redirectUrl = transaction.redirect_url;
 
-        
+        // Cek apakah data pembayaran untuk pesanan ini sudah ada
         const { data: existingPayment } = await supabase
             .from('pembayaran')
             .select('*')
@@ -243,7 +243,7 @@ const getSnapToken = async (req, res) => {
             .maybeSingle();
 
         if (existingPayment) {
-            
+            // Update data pembayaran yang sudah ada
             const { error: updateError } = await supabase
                 .from('pembayaran')
                 .update({
@@ -256,7 +256,7 @@ const getSnapToken = async (req, res) => {
 
             if (updateError) throw updateError;
         } else {
-            
+            // Buat data pembayaran baru jika belum ada
             const { error: insertError } = await supabase
                 .from('pembayaran')
                 .insert([
@@ -284,7 +284,7 @@ const getSnapToken = async (req, res) => {
     }
 };
 
-
+// 7. Menangani Webhook Callback Notification dari Midtrans
 const handleMidtransNotification = async (req, res) => {
     try {
         const notificationJson = req.body;
@@ -297,7 +297,7 @@ const handleMidtransNotification = async (req, res) => {
 
         console.log(`Transaction notification received. Order ID: ${orderId}. Status: ${transactionStatus}. Fraud: ${fraudStatus}`);
 
-        
+        // Ambil id_pesanan dari orderId
         const parts = orderId.split('-');
         const idPesanan = parseInt(parts[2]);
 
@@ -344,7 +344,7 @@ const handleMidtransNotification = async (req, res) => {
             updatePembayaran.tanggal_pembayaran = new Date();
         }
 
-        
+        // Update status pembayaran
         const { error: paymentUpdateError } = await supabase
             .from('pembayaran')
             .update(updatePembayaran)
@@ -352,7 +352,7 @@ const handleMidtransNotification = async (req, res) => {
 
         if (paymentUpdateError) throw paymentUpdateError;
 
-        
+        // Update status pesanan
         const { error: orderUpdateError } = await supabase
             .from('pesanan')
             .update({ status_pesanan: pesananStatus })
@@ -360,7 +360,7 @@ const handleMidtransNotification = async (req, res) => {
 
         if (orderUpdateError) throw orderUpdateError;
 
-        
+        // Emit Socket.io event update secara realtime ke pelanggan
         const io = req.app.get('io');
         if (io) {
             const { data: pesanan } = await supabase

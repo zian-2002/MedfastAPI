@@ -1,6 +1,6 @@
 const supabase = require('../config/supabase');
 
-
+// Mengambil semua obat beserta jumlah stoknya (Filter soft delete)
 const getAllObat = async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -15,7 +15,7 @@ const getAllObat = async (req, res) => {
 
         if (error) throw error;
         
-        
+        // Map data untuk menyertakan total jumlah_stok ke frontend
         const mappedData = data.map(item => {
             const totalStok = (item.stok_obat || []).reduce((acc, curr) => acc + (curr.jumlah_stok || 0), 0);
             const { stok_obat, ...rest } = item;
@@ -31,7 +31,7 @@ const getAllObat = async (req, res) => {
     }
 };
 
-
+// Mengambil satu obat berdasarkan ID beserta jumlah stoknya (Filter soft delete)
 const getObatById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -63,7 +63,7 @@ const getObatById = async (req, res) => {
     }
 };
 
-
+// Fungsi bantuan untuk upload file ke Supabase Storage
 const uploadToSupabase = async (file) => {
     const fileName = `${Date.now()}-${file.originalname}`;
     const { data, error } = await supabase.storage
@@ -74,7 +74,7 @@ const uploadToSupabase = async (file) => {
 
     if (error) throw error;
 
-    
+    // Dapatkan Public URL untuk disimpan di database
     const { data: publicUrlData } = supabase.storage
         .from('obat')
         .getPublicUrl(fileName);
@@ -82,13 +82,13 @@ const uploadToSupabase = async (file) => {
     return publicUrlData.publicUrl;
 };
 
-
+// Menambah obat baru (Admin Only)
 const createObat = async (req, res) => {
     try {
         const { nama_obat, deskripsi, kategori, harga } = req.body;
         let imageUrl = null;
 
-        
+        // Jika ada file gambar yang diupload
         if (req.file) {
             imageUrl = await uploadToSupabase(req.file);
         }
@@ -117,7 +117,7 @@ const createObat = async (req, res) => {
     }
 };
 
-
+// Mengupdate obat (Admin Only)
 const updateObat = async (req, res) => {
     try {
         const { id } = req.params;
@@ -135,7 +135,7 @@ const updateObat = async (req, res) => {
             }
         }
 
-        
+        // Keamanan: Admin hanya boleh mengupdate obat yang ada di apoteknya sendiri
         if (id_apotek) {
             const { data: stockCheck, error: checkError } = await supabase
                 .from('stok_obat')
@@ -149,7 +149,7 @@ const updateObat = async (req, res) => {
             }
         }
 
-        
+        // Ambil data obat saat ini untuk mengecek gambar lama (opsional jika ingin menghapus gambar lama)
         const { data: existingObat } = await supabase
             .from('obat')
             .select('*')
@@ -161,9 +161,9 @@ const updateObat = async (req, res) => {
             return res.status(404).json({ message: 'Obat tidak ditemukan' });
         }
 
-        let imageUrl = existingObat.gambar; 
+        let imageUrl = existingObat.gambar; // default menggunakan gambar lama
 
-        
+        // Jika ada gambar baru yang diupload, ganti URL
         if (req.file) {
             imageUrl = await uploadToSupabase(req.file);
         }
@@ -191,7 +191,7 @@ const updateObat = async (req, res) => {
     }
 };
 
-
+// Menghapus obat (Admin Only - Soft Delete)
 const deleteObat = async (req, res) => {
     try {
         const { id } = req.params;
@@ -208,7 +208,7 @@ const deleteObat = async (req, res) => {
             }
         }
 
-        
+        // Keamanan: Admin hanya boleh menghapus obat yang ada di apoteknya sendiri
         if (id_apotek) {
             const { data: stockCheck, error: checkError } = await supabase
                 .from('stok_obat')
@@ -221,14 +221,14 @@ const deleteObat = async (req, res) => {
                 return res.status(403).json({ message: 'Akses ditolak. Obat ini tidak terdaftar di apotek Anda.' });
             }
 
-            
+            // Hapus relasi stok terlebih dahulu untuk apotek ini
             await supabase
                 .from('stok_obat')
                 .delete()
                 .eq('id_obat', id)
                 .eq('id_apotek', id_apotek);
 
-            
+            // Cek apakah masih ada apotek lain yang memiliki stok obat ini
             const { data: otherStocks } = await supabase
                 .from('stok_obat')
                 .select('id_stok')
@@ -236,7 +236,7 @@ const deleteObat = async (req, res) => {
                 .limit(1);
 
             if (!otherStocks || otherStocks.length === 0) {
-                
+                // Jika tidak ada apotek lain yang mengelola obat ini, lakukan soft delete pada tabel obat
                 const { error: deleteError } = await supabase
                     .from('obat')
                     .update({ deleted_at: new Date() })
@@ -244,7 +244,7 @@ const deleteObat = async (req, res) => {
                 if (deleteError) throw deleteError;
             }
         } else {
-            
+            // Jika super admin / tidak terikat apotek tertentu, hapus semua stok obat ini lalu soft delete
             await supabase
                 .from('stok_obat')
                 .delete()

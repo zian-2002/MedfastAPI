@@ -1,6 +1,6 @@
 const supabase = require('../config/supabase');
 
-
+// Mendapatkan atau membuat room chat baru antara pelanggan dan apotek
 const getOrCreateRoom = async (req, res) => {
     try {
         const { id_pelanggan, id_admin, id_apotek } = req.body;
@@ -9,7 +9,7 @@ const getOrCreateRoom = async (req, res) => {
             return res.status(400).json({ message: 'id_pelanggan dan id_apotek wajib diisi' });
         }
 
-        
+        // Cari apakah room sudah ada untuk pelanggan dan apotek ini
         const { data: existingRoom, error: selectError } = await supabase
             .from('chat')
             .select('*')
@@ -27,7 +27,7 @@ const getOrCreateRoom = async (req, res) => {
             });
         }
 
-        
+        // Jika belum ada, buat room baru
         const { data: newRoom, error: insertError } = await supabase
             .from('chat')
             .insert([
@@ -49,14 +49,14 @@ const getOrCreateRoom = async (req, res) => {
     }
 };
 
-
+// Mendapatkan daftar semua room chat milik user tertentu (baik pelanggan maupun admin)
 const getUserRooms = async (req, res) => {
     try {
         const { userId } = req.params;
         const role = req.user.role;
         let id_apotek = req.user.id_apotek;
 
-        
+        // Fallback jika token JWT lama belum direfresh
         if (role === 'admin' && !id_apotek) {
             const { data: userDb } = await supabase
                 .from('users')
@@ -86,11 +86,11 @@ const getUserRooms = async (req, res) => {
                 )
             `);
 
-        
+        // Jika admin, kembalikan semua chat room yang ditujukan ke apoteknya
         if (role === 'admin' && id_apotek) {
             query = query.eq('id_apotek', id_apotek);
         } else {
-            
+            // Pelanggan melihat chat miliknya sendiri
             query = query.or(`id_pelanggan.eq.${userId},id_admin.eq.${userId}`);
         }
 
@@ -110,7 +110,7 @@ const getUserRooms = async (req, res) => {
     }
 };
 
-
+// Mendapatkan seluruh riwayat pesan dari room chat tertentu
 const getChatMessages = async (req, res) => {
     try {
         const { chatId } = req.params;
@@ -141,7 +141,7 @@ const getChatMessages = async (req, res) => {
     }
 };
 
-
+// Mengunggah gambar ke Supabase Storage (bucket: chat_images)
 const uploadChatImage = async (req, res) => {
     try {
         if (!req.file) {
@@ -157,7 +157,7 @@ const uploadChatImage = async (req, res) => {
 
         if (error) throw error;
 
-        
+        // Dapatkan Public URL untuk disimpan/dikirim di chat
         const { data: publicUrlData } = supabase.storage
             .from('chat_images')
             .getPublicUrl(fileName);
@@ -172,7 +172,7 @@ const uploadChatImage = async (req, res) => {
     }
 };
 
-
+// Mengirim pesan baru (HTTP POST) dan memancarkannya via Socket.io
 const sendMessage = async (req, res) => {
     try {
         const { id_chat, id_pengirim, pesan } = req.body;
@@ -181,7 +181,7 @@ const sendMessage = async (req, res) => {
             return res.status(400).json({ message: 'id_chat, id_pengirim, dan pesan wajib diisi' });
         }
 
-        
+        // Simpan pesan ke database Supabase
         const { data: newMsg, error } = await supabase
             .from('chat_message')
             .insert([
@@ -204,7 +204,7 @@ const sendMessage = async (req, res) => {
             return res.status(500).json({ message: 'Gagal mengirim pesan', error });
         }
 
-        
+        // Jika chat room belum memiliki id_admin dan pengirimnya adalah admin, ikat admin ke room ini
         const { data: roomCheck } = await supabase
             .from('chat')
             .select('id_admin')
@@ -226,7 +226,7 @@ const sendMessage = async (req, res) => {
             }
         }
 
-        
+        // Emit pesan ke seluruh client di room yang sama melalui Socket.io
         const io = req.app.get('io');
         if (io) {
             io.to(id_chat.toString()).emit('receive_message', newMsg[0]);

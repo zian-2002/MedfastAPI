@@ -2,13 +2,13 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
-const http = require('http'); 
-const { Server } = require('socket.io'); 
-const supabase = require('./src/config/supabase'); 
+const http = require('http'); // Module HTTP bawaan Node
+const { Server } = require('socket.io'); // Socket.io Server
+const supabase = require('./src/config/supabase'); // Supabase client untuk simpan chat
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
 
-
+// Import routes
 const authRoutes = require('./src/routes/authRoutes');
 const obatRoutes = require('./src/routes/obatRoutes');
 const apotekRoutes = require('./src/routes/apotekRoutes');
@@ -18,17 +18,17 @@ const pesananRoutes = require('./src/routes/pesananRoutes');
 const detailPesananRoutes = require('./src/routes/detailPesananRoutes');
 const pembayaranRoutes = require('./src/routes/pembayaranRoutes');
 const pengirimanRoutes = require('./src/routes/pengirimanRoutes');
-const chatRoutes = require('./src/routes/chatRoutes'); 
-const keranjangRoutes = require('./src/routes/keranjangRoutes'); 
+const chatRoutes = require('./src/routes/chatRoutes'); // Import rute chat
+const keranjangRoutes = require('./src/routes/keranjangRoutes'); // Import rute keranjang
 
 const app = express();
 
-
+// Middlewares
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-
+// Swagger Configuration
 const swaggerOptions = {
     definition: {
         openapi: '3.0.0',
@@ -59,18 +59,18 @@ const swaggerOptions = {
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 app.use('/swagger', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-
-
-
+// ==============================
+// TEST API
+// ==============================
 app.get('/', (req, res) => {
     res.json({
         message: 'API Medfast berhasil jalan 🚀'
     });
 });
 
-
-
-
+// ==============================
+// ROUTES API
+// ==============================
 app.use('/api/auth', authRoutes);
 app.use('/api/obat', obatRoutes);
 app.use('/api/apotek', apotekRoutes);
@@ -85,11 +85,11 @@ const fs = require('fs');
 const path = require('path');
 const presenceFilePath = path.join(__dirname, 'presence.json');
 
+// In-memory presence tracking maps
+const onlineUsers = new Map(); // userId -> socketId
+const lastSeenMap = new Map();  // userId -> ISO String
 
-const onlineUsers = new Map(); 
-const lastSeenMap = new Map();  
-
-
+// Load presence from file on startup
 try {
     if (fs.existsSync(presenceFilePath)) {
         const rawData = fs.readFileSync(presenceFilePath, 'utf8');
@@ -103,7 +103,7 @@ try {
     console.error('Error loading presence file:', err.message);
 }
 
-
+// Function to save presence data
 function savePresenceToFile() {
     try {
         const obj = {};
@@ -116,15 +116,15 @@ function savePresenceToFile() {
     }
 }
 
-
+// Endpoint presence check (Public, no JWT required)
 app.get('/api/chat/presence/:userId', (req, res) => {
     const userId = parseInt(req.params.userId);
     const isOnline = onlineUsers.has(userId);
     
-    
+    // Fallback to 5 minutes ago if no last seen data exists
     let lastSeen = lastSeenMap.get(userId) || null;
     if (!isOnline && !lastSeen) {
-        const fallbackTime = new Date(Date.now() - 5 * 60 * 1000); 
+        const fallbackTime = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes ago
         lastSeen = fallbackTime.toISOString();
     }
     
@@ -135,27 +135,27 @@ app.get('/api/chat/presence/:userId', (req, res) => {
     });
 });
 
-app.use('/api/chat', chatRoutes); 
+app.use('/api/chat', chatRoutes); // Daftarkan rute chat setelah rute public presence
 
-
-
-
+// ==============================
+// HTTP & SOCKET.IO SERVER SETUP
+// ==============================
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "*", 
+        origin: "*", // Mengizinkan semua domain (misal dari Flutter)
         methods: ["GET", "POST"]
     }
 });
 
-
+// Pasang io ke objek app agar bisa diakses di controller
 app.set('io', io);
 
-
+// Logika event Socket.io
 io.on('connection', (socket) => {
     console.log(`User terhubung ke Socket: ${socket.id}`);
 
-    
+    // Event bergabung untuk mendapatkan pembaruan status pesanan realtime
     socket.on('join_orders_updates', (userId) => {
         if (userId) {
             socket.join(`orders_${userId}`);
@@ -163,7 +163,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    
+    // Event mendaftarkan presence
     socket.on('register_presence', (userId) => {
         if (userId) {
             const uid = parseInt(userId);
@@ -180,7 +180,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    
+    // Event ketika client masuk ke room chat tertentu
     socket.on('join_room', (chatId) => {
         if (chatId) {
             socket.join(chatId.toString());
@@ -188,7 +188,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    
+    // Event ketika client mengirim pesan
     socket.on('send_message', async (data) => {
         try {
             const { id_chat, id_pengirim, pesan } = data;
@@ -198,7 +198,7 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            
+            // Simpan pesan baru ke database Supabase
             const { data: newMsg, error } = await supabase
                 .from('chat_message')
                 .insert([
@@ -222,7 +222,7 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            
+            // Broadcast pesan ke seluruh client di room yang sama
             io.to(id_chat.toString()).emit('receive_message', newMsg[0]);
             console.log(`Pesan terkirim di room ${id_chat} oleh user ${id_pengirim}`);
 
@@ -231,7 +231,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    
+    // Event ketika client disconnect
     socket.on('disconnect', () => {
         console.log(`User terputus dari Socket: ${socket.id}`);
         if (socket.userId) {
@@ -250,12 +250,12 @@ io.on('connection', (socket) => {
     });
 });
 
-
-
-
+// ==============================
+// PORT & START SERVER
+// ==============================
 const PORT = process.env.PORT || 3000;
 
-
+// Menjalankan HTTP server pembungkus Express + Socket.io
 server.listen(PORT, () => {
     console.log(`Server jalan di port ${PORT}`);
 });

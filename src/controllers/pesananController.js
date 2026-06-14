@@ -1,13 +1,13 @@
 const supabase = require('../config/supabase');
 
-
-
+// 1. Membuat pesanan baru
+// Mendukung pembuatan pesanan sekaligus detail_pesanan dalam satu request
 const createPesanan = async (req, res) => {
     try {
-        const id_user = req.user.id_user; 
+        const id_user = req.user.id_user; // Diambil dari JWT token
         const { id_apotek, total_harga, status_pesanan, detail_items } = req.body;
 
-        
+        // Validasi sederhana
         if (!id_apotek) {
             return res.status(400).json({ message: 'id_apotek wajib diisi' });
         }
@@ -15,7 +15,7 @@ const createPesanan = async (req, res) => {
             return res.status(400).json({ message: 'total_harga tidak valid' });
         }
 
-        
+        // Pengecekan ketersediaan stok obat sebelum pesanan dibuat
         if (detail_items && Array.isArray(detail_items) && detail_items.length > 0) {
             for (const item of detail_items) {
                 const id_obat = item.id_obat;
@@ -37,13 +37,13 @@ const createPesanan = async (req, res) => {
                     });
                 }
                 
-                
+                // Simpan referensi update stok ke item
                 item.id_stok = stockData.id_stok;
                 item.new_stock = currentStock - jumlah;
             }
         }
 
-        
+        // Insert ke tabel pesanan
         const { data: pesananData, error: pesananError } = await supabase
             .from('pesanan')
             .insert([
@@ -64,7 +64,7 @@ const createPesanan = async (req, res) => {
 
         let insertedDetails = [];
 
-        
+        // Jika terdapat detail_items, insert juga ke tabel detail_pesanan
         if (detail_items && Array.isArray(detail_items) && detail_items.length > 0) {
             const detailsToInsert = detail_items.map(item => {
                 return {
@@ -81,12 +81,12 @@ const createPesanan = async (req, res) => {
                 .select();
 
             if (detailsError) {
-                
+                // Jika gagal memasukkan detail, hapus pesanan yang baru dibuat agar tidak jadi data yatim (rollback manual)
                 await supabase.from('pesanan').delete().eq('id_pesanan', id_pesanan);
                 throw detailsError;
             }
             
-            
+            // Kurangi stok obat di database setelah pemesanan sukses dibuat
             for (const item of detail_items) {
                 const { error: stockUpdateError } = await supabase
                     .from('stok_obat')
@@ -110,16 +110,16 @@ const createPesanan = async (req, res) => {
     }
 };
 
-
-
-
+// 2. Mengambil semua pesanan (dengan relasi)
+// - Admin: melihat semua pesanan
+// - User: hanya melihat pesanan miliknya sendiri
 const getAllPesanan = async (req, res) => {
     try {
         const id_user = req.user.id_user;
         const role = req.user.role;
         let id_apotek = req.user.id_apotek;
 
-        
+        // Fallback jika token JWT lama belum direfresh
         if (role === 'admin' && !id_apotek) {
             const { data: userDb } = await supabase
                 .from('users')
@@ -135,13 +135,13 @@ const getAllPesanan = async (req, res) => {
             .from('pesanan')
             .select('*, users(id_user, nama, email), apotek(*)');
 
-        
+        // Batasi query berdasarkan role
         if (role === 'admin') {
             if (id_apotek) {
                 query = query.eq('id_apotek', id_apotek);
             }
         } else {
-            
+            // Pelanggan hanya melihat pesanan miliknya sendiri
             query = query.eq('id_user', id_user);
         }
 
@@ -155,7 +155,7 @@ const getAllPesanan = async (req, res) => {
     }
 };
 
-
+// 3. Mengambil satu pesanan detail berdasarkan ID (relasi lengkap)
 const getPesananById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -163,7 +163,7 @@ const getPesananById = async (req, res) => {
         const role = req.user.role;
         let id_apotek = req.user.id_apotek;
 
-        
+        // Fallback jika token JWT lama belum direfresh
         if (role === 'admin' && !id_apotek) {
             const { data: userDb } = await supabase
                 .from('users')
@@ -196,7 +196,7 @@ const getPesananById = async (req, res) => {
             return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
         }
 
-        
+        // Keamanan: Pastikan user hanya dapat mengakses pesanannya sendiri
         if (role === 'admin') {
             if (id_apotek && pesanan.id_apotek !== id_apotek) {
                 return res.status(403).json({ message: 'Akses ditolak. Pesanan ini milik apotek lain.' });
@@ -211,7 +211,7 @@ const getPesananById = async (req, res) => {
     }
 };
 
-
+// 4. Memperbarui status pesanan
 const updatePesananStatus = async (req, res) => {
     try {
         const { id } = req.params;
@@ -220,7 +220,7 @@ const updatePesananStatus = async (req, res) => {
         const role = req.user.role;
         let id_apotek = req.user.id_apotek;
 
-        
+        // Fallback jika token JWT lama belum direfresh
         if (role === 'admin' && !id_apotek) {
             const { data: userDb } = await supabase
                 .from('users')
@@ -236,7 +236,7 @@ const updatePesananStatus = async (req, res) => {
             return res.status(400).json({ message: 'status_pesanan wajib diisi' });
         }
 
-        
+        // Dapatkan data pesanan saat ini untuk verifikasi keamanan
         const { data: existingPesanan, error: fetchError } = await supabase
             .from('pesanan')
             .select('*')
@@ -247,13 +247,13 @@ const updatePesananStatus = async (req, res) => {
             return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
         }
 
-        
+        // Keamanan & Aturan Bisnis:
         if (role === 'admin') {
             if (id_apotek && existingPesanan.id_apotek !== id_apotek) {
                 return res.status(403).json({ message: 'Akses ditolak. Pesanan ini milik apotek lain.' });
             }
         } else {
-            
+            // Pelanggan hanya bisa membatalkan ('dibatalkan') jika status saat ini masih 'pending'
             if (existingPesanan.id_user !== id_user) {
                 return res.status(403).json({ message: 'Akses ditolak.' });
             }
@@ -265,7 +265,7 @@ const updatePesananStatus = async (req, res) => {
             }
         }
 
-        
+        // Jika status diubah menjadi 'dibatalkan', kembalikan stok obat ke apotek
         if (status_pesanan === 'dibatalkan' && existingPesanan.status_pesanan !== 'dibatalkan') {
             const { data: detailItems, error: detailError } = await supabase
                 .from('detail_pesanan')
@@ -298,7 +298,7 @@ const updatePesananStatus = async (req, res) => {
             }
         }
 
-        
+        // Jika status diubah menjadi 'selesai', otomatis ubah status pembayaran terkait menjadi 'berhasil'
         if (status_pesanan === 'selesai') {
             const { error: paymentUpdateError } = await supabase
                 .from('pembayaran')
@@ -318,7 +318,7 @@ const updatePesananStatus = async (req, res) => {
 
         if (error) throw error;
 
-        
+        // Memancarkan update status pesanan secara realtime lewat Socket.io
         const io = req.app.get('io');
         if (io && data && data.length > 0) {
             const id_pemesan = data[0].id_user;
@@ -338,7 +338,7 @@ const updatePesananStatus = async (req, res) => {
     }
 };
 
-
+// 5. Menghapus pesanan (Admin Only / Keamanan Tambahan)
 const deletePesanan = async (req, res) => {
     try {
         const { id } = req.params;
@@ -348,17 +348,17 @@ const deletePesanan = async (req, res) => {
             return res.status(403).json({ message: 'Hanya admin yang dapat menghapus pesanan' });
         }
 
-        
+        // Hapus detail_pesanan terlebih dahulu (untuk menghindari foreign key constraint error)
         await supabase
             .from('detail_pesanan')
             .delete()
             .eq('id_pesanan', id);
 
-        
+        // Hapus pembayaran & pengiriman terkait jika ada
         await supabase.from('pembayaran').delete().eq('id_pesanan', id);
         await supabase.from('pengiriman').delete().eq('id_pesanan', id);
 
-        
+        // Hapus pesanan utama
         const { error } = await supabase
             .from('pesanan')
             .delete()

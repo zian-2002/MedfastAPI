@@ -6,6 +6,7 @@ const register = async (req, res) => {
     try {
         const { nama, email, password, no_hp, alamat, role, kode_apotek } = req.body;
 
+        // Cek apakah email sudah ada
         const { data: cekUser } = await supabase
             .from('users')
             .select('*')
@@ -18,11 +19,13 @@ const register = async (req, res) => {
 
         let resolvedIdApotek = null;
 
+        // Validasi kode apotek khusus pendaftaran admin
         if (role === 'admin') {
             if (!kode_apotek) {
                 return res.status(400).json({ message: 'Registrasi admin wajib memasukkan kode apotek' });
             }
 
+            // Cari apotek berdasarkan kode_apotek
             const { data: apotek, error: apotekError } = await supabase
                 .from('apotek')
                 .select('*')
@@ -36,8 +39,10 @@ const register = async (req, res) => {
             resolvedIdApotek = apotek.id_apotek;
         }
 
+        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        // Insert user baru dengan id_apotek (null untuk pelanggan, bernilai id_apotek untuk admin)
         const { data: newUser, error: insertError } = await supabase
             .from('users')
             .insert([
@@ -71,6 +76,7 @@ const login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
+        // Cek user berdasarkan email
         const { data: user, error } = await supabase
             .from('users')
             .select('*')
@@ -81,12 +87,14 @@ const login = async (req, res) => {
             return res.status(400).json({ message: 'Email tidak ditemukan' });
         }
 
+        // Cek validitas password
         const validPassword = await bcrypt.compare(password, user.password);
 
         if (!validPassword) {
             return res.status(400).json({ message: 'Password salah' });
         }
 
+        // Generate token
         const token = jwt.sign(
             {
                 id_user: user.id_user,

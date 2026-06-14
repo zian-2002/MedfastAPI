@@ -1,6 +1,6 @@
 const supabase = require('../config/supabase');
 
-// 1. Mengambil seluruh isi keranjang belanja user beserta stoknya
+
 const getKeranjang = async (req, res) => {
     try {
         const id_user = req.user.id_user;
@@ -21,7 +21,7 @@ const getKeranjang = async (req, res) => {
 
         if (error) throw error;
 
-        // Map data untuk menggabungkan jumlah_stok di dalam objek obat
+        
         const mappedData = data.map(item => {
             if (item.obat) {
                 const totalStok = (item.obat.stok_obat || []).reduce((acc, curr) => acc + (curr.jumlah_stok || 0), 0);
@@ -43,7 +43,7 @@ const getKeranjang = async (req, res) => {
     }
 };
 
-// 2. Menambah item baru ke keranjang belanja
+
 const addToKeranjang = async (req, res) => {
     try {
         const id_user = req.user.id_user;
@@ -58,7 +58,7 @@ const addToKeranjang = async (req, res) => {
             return res.status(400).json({ message: 'Jumlah barang harus lebih dari 0' });
         }
 
-        // Cek ketersediaan stok obat terlebih dahulu
+        
         const { data: stockRecords, error: stockErr } = await supabase
             .from('stok_obat')
             .select('jumlah_stok')
@@ -70,7 +70,7 @@ const addToKeranjang = async (req, res) => {
             return res.status(400).json({ message: 'Stok obat ini habis atau tidak tersedia' });
         }
 
-        // Cek apakah obat tersebut sudah ada di keranjang user
+        
         const { data: existingItem, error: fetchError } = await supabase
             .from('keranjang')
             .select('*')
@@ -82,7 +82,7 @@ const addToKeranjang = async (req, res) => {
 
         let result;
         if (existingItem) {
-            // Jika sudah ada, update kuantitasnya
+            
             const newJumlah = existingItem.jumlah + qty;
             const { data: updateData, error: updateError } = await supabase
                 .from('keranjang')
@@ -93,7 +93,7 @@ const addToKeranjang = async (req, res) => {
             if (updateError) throw updateError;
             result = updateData[0];
         } else {
-            // Jika belum ada, masukkan data baru
+            
             const { data: insertData, error: insertError } = await supabase
                 .from('keranjang')
                 .insert([
@@ -118,11 +118,11 @@ const addToKeranjang = async (req, res) => {
     }
 };
 
-// 3. Memperbarui kuantitas (jumlah) item di keranjang secara langsung
+
 const updateKeranjangQuantity = async (req, res) => {
     try {
         const id_user = req.user.id_user;
-        const { id } = req.params; // id_keranjang
+        const { id } = req.params; 
         const { jumlah } = req.body;
 
         if (jumlah === undefined) {
@@ -138,7 +138,7 @@ const updateKeranjangQuantity = async (req, res) => {
             .from('keranjang')
             .update({ jumlah: qty, updated_at: new Date() })
             .eq('id_keranjang', id)
-            .eq('id_user', id_user) // Keamanan: Pastikan milik user yang login
+            .eq('id_user', id_user) 
             .select();
 
         if (error) throw error;
@@ -155,17 +155,17 @@ const updateKeranjangQuantity = async (req, res) => {
     }
 };
 
-// 4. Menghapus satu item dari keranjang
+
 const deleteFromKeranjang = async (req, res) => {
     try {
         const id_user = req.user.id_user;
-        const { id } = req.params; // id_keranjang
+        const { id } = req.params; 
 
         const { data, error } = await supabase
             .from('keranjang')
             .delete()
             .eq('id_keranjang', id)
-            .eq('id_user', id_user) // Keamanan: Pastikan milik user yang login
+            .eq('id_user', id_user) 
             .select();
 
         if (error) throw error;
@@ -181,7 +181,7 @@ const deleteFromKeranjang = async (req, res) => {
     }
 };
 
-// 5. Mengosongkan seluruh isi keranjang milik user
+
 const clearKeranjang = async (req, res) => {
     try {
         const id_user = req.user.id_user;

@@ -1,9 +1,9 @@
 const supabase = require('../config/supabase');
 const bcrypt = require('bcrypt');
 
-// ==========================================
-// GET PROFILE
-// ==========================================
+
+
+
 const getProfile = async (req, res) => {
     try {
         const id_user = req.user.id_user;
@@ -31,16 +31,16 @@ const getProfile = async (req, res) => {
     }
 };
 
-// ==========================================
-// UPDATE PROFILE
-// ==========================================
+
+
+
 const updateProfile = async (req, res) => {
     try {
         const id_user = req.user.id_user;
 
         const { nama, no_hp, alamat } = req.body;
 
-        // ambil role user dulu
+        
         const { data: user, error: userError } = await supabase
             .from('users')
             .select('role')
@@ -53,12 +53,12 @@ const updateProfile = async (req, res) => {
         if (nama !== undefined) updateData.nama = nama;
         if (no_hp !== undefined) updateData.no_hp = no_hp;
 
-        // kalau pelanggan boleh edit alamat
+        
         if (user.role === 'pelanggan' && alamat !== undefined) {
             updateData.alamat = alamat;
         }
 
-        // kalau admin alamat tidak diubah
+        
         const { data, error } = await supabase
             .from('users')
             .update(updateData)
@@ -79,16 +79,16 @@ const updateProfile = async (req, res) => {
     }
 };
 
-// ==========================================
-// CHANGE PASSWORD
-// ==========================================
+
+
+
 const changePassword = async (req, res) => {
     try {
         const id_user = req.user.id_user;
 
         const { old_password, new_password } = req.body;
 
-        // ambil data user
+        
         const { data: user, error: fetchError } = await supabase
             .from('users')
             .select('*')
@@ -101,7 +101,7 @@ const changePassword = async (req, res) => {
             });
         }
 
-        // cek password lama
+        
         const validPassword = await bcrypt.compare(
             old_password,
             user.password
@@ -113,10 +113,10 @@ const changePassword = async (req, res) => {
             });
         }
 
-        // hash password baru
+        
         const hashedNewPassword = await bcrypt.hash(new_password, 10);
 
-        // update password
+        
         const { error: updateError } = await supabase
             .from('users')
             .update({

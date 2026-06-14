@@ -1,9 +1,9 @@
 const supabase = require('../config/supabase');
 
-// Fungsi pembantu untuk mengupdate total_harga pada pesanan secara otomatis
+
 const updatePesananTotal = async (id_pesanan) => {
     try {
-        // Ambil semua detail pesanan untuk pesanan ini
+        
         const { data: details, error } = await supabase
             .from('detail_pesanan')
             .select('subtotal')
@@ -11,10 +11,10 @@ const updatePesananTotal = async (id_pesanan) => {
 
         if (error) throw error;
 
-        // Hitung total harga baru
+        
         const newTotal = details.reduce((acc, curr) => acc + (parseFloat(curr.subtotal) || 0), 0);
 
-        // Update di tabel pesanan
+        
         const { error: updateError } = await supabase
             .from('pesanan')
             .update({ total_harga: newTotal })
@@ -26,12 +26,12 @@ const updatePesananTotal = async (id_pesanan) => {
     }
 };
 
-// 1. Menambahkan item obat ke dalam pesanan yang sudah ada
+
 const createDetailPesanan = async (req, res) => {
     try {
         const { id_pesanan, id_obat, jumlah, harga_satuan } = req.body;
 
-        // Validasi input
+        
         if (!id_pesanan || !id_obat || !jumlah || !harga_satuan) {
             return res.status(400).json({ message: 'Semua field (id_pesanan, id_obat, jumlah, harga_satuan) wajib diisi' });
         }
@@ -50,7 +50,7 @@ const createDetailPesanan = async (req, res) => {
 
         if (error) throw error;
 
-        // Update total_harga di tabel pesanan
+        
         await updatePesananTotal(id_pesanan);
 
         res.status(201).json({
@@ -62,8 +62,8 @@ const createDetailPesanan = async (req, res) => {
     }
 };
 
-// 2. Mengambil semua detail pesanan
-// Opsional: Filter berdasarkan ?id_pesanan=xxx
+
+
 const getAllDetailPesanan = async (req, res) => {
     try {
         const { id_pesanan } = req.query;
@@ -86,7 +86,7 @@ const getAllDetailPesanan = async (req, res) => {
     }
 };
 
-// 3. Mengambil satu detail pesanan berdasarkan ID
+
 const getDetailPesananById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -106,13 +106,13 @@ const getDetailPesananById = async (req, res) => {
     }
 };
 
-// 4. Mengubah jumlah/harga obat dalam detail pesanan
+
 const updateDetailPesanan = async (req, res) => {
     try {
         const { id } = req.params;
         const { jumlah, harga_satuan } = req.body;
 
-        // Dapatkan data saat ini untuk kalkulasi subtotal baru
+        
         const { data: currentDetail, error: fetchError } = await supabase
             .from('detail_pesanan')
             .select('*')
@@ -137,7 +137,7 @@ const updateDetailPesanan = async (req, res) => {
 
         if (error) throw error;
 
-        // Update total_harga di tabel pesanan
+        
         await updatePesananTotal(currentDetail.id_pesanan);
 
         res.status(200).json({
@@ -149,12 +149,12 @@ const updateDetailPesanan = async (req, res) => {
     }
 };
 
-// 5. Menghapus detail pesanan
+
 const deleteDetailPesanan = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Dapatkan id_pesanan sebelum dihapus untuk melakukan update total_harga
+        
         const { data: currentDetail, error: fetchError } = await supabase
             .from('detail_pesanan')
             .select('id_pesanan')
@@ -172,7 +172,7 @@ const deleteDetailPesanan = async (req, res) => {
 
         if (error) throw error;
 
-        // Update total_harga di tabel pesanan
+        
         await updatePesananTotal(currentDetail.id_pesanan);
 
         res.status(200).json({ message: 'Detail pesanan berhasil dihapus' });

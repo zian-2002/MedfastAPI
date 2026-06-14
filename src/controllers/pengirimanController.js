@@ -1,16 +1,16 @@
 const supabase = require('../config/supabase');
 
-// 1. Membuat pengiriman baru
+
 const createPengiriman = async (req, res) => {
     try {
         const { id_pesanan, alamat_tujuan, status_pengiriman } = req.body;
 
-        // Validasi input
+        
         if (!id_pesanan || !alamat_tujuan) {
             return res.status(400).json({ message: 'id_pesanan dan alamat_tujuan wajib diisi' });
         }
 
-        // Cek apakah pesanan ada
+        
         const { data: pesanan, error: pesananError } = await supabase
             .from('pesanan')
             .select('*')
@@ -47,7 +47,7 @@ const createPengiriman = async (req, res) => {
 
         if (error) throw error;
 
-        // Logika Bisnis: Singkronisasi status pesanan utama
+        
         if (statusKirim === 'dikirim') {
             await supabase.from('pesanan').update({ status_pesanan: 'dikirim' }).eq('id_pesanan', id_pesanan);
         } else if (statusKirim === 'sampai') {
@@ -63,9 +63,9 @@ const createPengiriman = async (req, res) => {
     }
 };
 
-// 2. Mendapatkan daftar pengiriman
-// - Admin: Melihat semua pengiriman
-// - User: Hanya melihat pengiriman milik sendiri menggunakan Supabase inner join
+
+
+
 const getAllPengiriman = async (req, res) => {
     try {
         const id_user = req.user.id_user;
@@ -89,7 +89,7 @@ const getAllPengiriman = async (req, res) => {
     }
 };
 
-// 3. Mendapatkan detail pengiriman berdasarkan ID
+
 const getPengirimanById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -105,7 +105,7 @@ const getPengirimanById = async (req, res) => {
         if (error) throw error;
         if (!data) return res.status(404).json({ message: 'Pengiriman tidak ditemukan' });
 
-        // Keamanan: Cek kepemilikan data pengiriman jika bukan admin
+        
         if (role !== 'admin' && data.pesanan.id_user !== id_user) {
             return res.status(403).json({ message: 'Akses ditolak. Anda tidak memiliki akses ke data pengiriman ini.' });
         }
@@ -116,13 +116,13 @@ const getPengirimanById = async (req, res) => {
     }
 };
 
-// 4. Memperbarui status/alamat pengiriman
+
 const updatePengiriman = async (req, res) => {
     try {
         const { id } = req.params;
         const { status_pengiriman, alamat_tujuan } = req.body;
 
-        // Ambil data pengiriman lama
+        
         const { data: currentShipment, error: fetchError } = await supabase
             .from('pengiriman')
             .select('*, pesanan(*)')
@@ -139,7 +139,7 @@ const updatePengiriman = async (req, res) => {
         if (status_pengiriman) {
             updateData.status_pengiriman = status_pengiriman;
             
-            // Atur tanggal pengiriman sesuai status
+            
             if (status_pengiriman === 'dikirim' && currentShipment.status_pengiriman !== 'dikirim') {
                 updateData.tanggal_kirim = new Date();
             } else if (status_pengiriman === 'sampai' && currentShipment.status_pengiriman !== 'sampai') {
@@ -158,7 +158,7 @@ const updatePengiriman = async (req, res) => {
 
         if (error) throw error;
 
-        // Logika Bisnis: Singkronisasi status pesanan utama
+        
         if (status_pengiriman === 'dikirim' && currentShipment.status_pengiriman !== 'dikirim') {
             await supabase.from('pesanan').update({ status_pesanan: 'dikirim' }).eq('id_pesanan', currentShipment.id_pesanan);
         } else if (status_pengiriman === 'sampai' && currentShipment.status_pengiriman !== 'sampai') {
@@ -174,7 +174,7 @@ const updatePengiriman = async (req, res) => {
     }
 };
 
-// 5. Menghapus pengiriman (Admin Only)
+
 const deletePengiriman = async (req, res) => {
     try {
         const { id } = req.params;
